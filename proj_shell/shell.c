@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 int main(int argc, char * argv[])
 {
     int* rcArr;
@@ -25,7 +27,6 @@ int main(int argc, char * argv[])
       
             if(!strcmp(str, "quit"))
             { 
-     //           printf("bye");
                 break;
             }
             ptr = strtok(str,";");
@@ -60,13 +61,15 @@ int main(int argc, char * argv[])
                     
                     }
                     strArr[idx] = NULL;
-                    execvp(strArr[0], strArr);
-                    break;
+                    if(execvp(strArr[0], strArr)<0)
+                    {
+                        exit(1);
+                    }
                 }
                 else
                 {
                     wcArr[i] = wait(NULL);
-                   printf("%dth fork dead, pid ; %d, ppid : %d\n", i+1,rcArr[i],getpid());
+         //          printf("pid ; %d, ppid : %d\n",rcArr[i],getpid());
 
                 }
     
@@ -82,7 +85,7 @@ int main(int argc, char * argv[])
         FILE * fp = fopen(argv[1], "r");
         if(fp == NULL)
         {
-            fprintf(stderr, "file open fail");
+            fprintf(stderr, "file open fail\n");
             exit(1);
         
         }
@@ -124,13 +127,15 @@ int main(int argc, char * argv[])
                     
                     }
                     strArr[idx] = NULL;
-                    execvp(strArr[0], strArr);
-                    break;
+                    if(execvp(strArr[0], strArr)<0)
+                    {
+                        exit(1);
+                    }
                 }
                 else
                 {
                     wcArr[i] = wait(NULL);
-                   printf("%dth fork dead, pid ; %d, ppid : %d\n", i+1,rcArr[i],getpid());
+  //                 printf(" pid ; %d, ppid : %d\n", i+1,rcArr[i],getpid());
     
                 }
     
@@ -138,6 +143,11 @@ int main(int argc, char * argv[])
             free(rcArr);
             free(wcArr);
         }
+    }
+    else //error case
+    {
+        puts("./shell (no argument) : interactive mode");
+        puts("./shell batchfile : batch mode");
     }
     return 0;
 
