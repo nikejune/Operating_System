@@ -4,17 +4,18 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+
 int main(int argc, char * argv[])
 {
-    int* rcArr;
-    int* wcArr;
-    char str[50];
-    char* ptr;
-    char* stmtArr[50];
-    char* strArr[50];
+    int* pidArr; // An array of process id's
+    char str[256]; // A string that user types commands to the prompt
+    char* stmtArr[256]; // An array of statements separated by ;
+    char* strArr[256]; // An array of string separated by " "
+    char* ptr; 
     int idx;
     int numOfStmt;
     int i;
+    
     //interactive mode
     if(argc ==1){
 
@@ -22,13 +23,17 @@ int main(int argc, char * argv[])
             idx =0;
     
             printf("prompt> ");
+            // user types commands
             fgets(str, sizeof(str), stdin);
+            // change '\n' into '\0'
             str[strlen(str)-1] = '\0';
-      
+            // if input string is "quit" , shell shutdown
             if(!strcmp(str, "quit"))
             { 
                 break;
             }
+      
+            //separate by ;
             ptr = strtok(str,";");
             while(ptr !=NULL)
             {
@@ -37,20 +42,22 @@ int main(int argc, char * argv[])
             
             }
             numOfStmt = idx;
-            rcArr = (int*)malloc(sizeof(int)*numOfStmt);
-            wcArr = (int*)malloc(sizeof(int)*numOfStmt);
+            pidArr = (int*)malloc(sizeof(int)*numOfStmt);
     
+            //fork numOfStmt times
             for(i=0; i<numOfStmt; i++)
             {
     
-                rcArr[i] = fork();
-                if(rcArr[i]<0)
+                pidArr[i] = fork();
+                if(pidArr[i]<0)
                 {
                     fprintf(stderr, "fork failed\n");
                     exit(1);
                 }
-                else if(rcArr[i]==0)
+                // child process
+                else if(pidArr[i]==0)
                 {
+                    //separate string by " "
                     idx = 0;
                     ptr = strtok(stmtArr[i], " ");
             
@@ -60,22 +67,22 @@ int main(int argc, char * argv[])
                         ptr = strtok(NULL, " ");
                     
                     }
+                    //function execvp needs NULL with last argument
                     strArr[idx] = NULL;
                     if(execvp(strArr[0], strArr)<0)
                     {
                         exit(1);
                     }
                 }
-                else
-                {
-                    wcArr[i] = wait(NULL);
-         //          printf("pid ; %d, ppid : %d\n",rcArr[i],getpid());
-
-                }
     
             }
-            free(rcArr);
-            free(wcArr);
+            // parent process
+            for(i=0;i<numOfStmt;i++)
+            {
+                wait(NULL);
+//                printf("pid ; %d, ppid : %d\n",pidArr[i],getpid());
+            }
+            free(pidArr);
 
         }
     }
@@ -89,12 +96,15 @@ int main(int argc, char * argv[])
             exit(1);
         
         }
+
+        //read batch file
         while(fgets(str, sizeof(str), fp))
         {
             idx =0;
             str[strlen(str)-1] = '\0';
             puts(str);
             
+            //separate string by ;
             ptr = strtok(str,";");
             while(ptr !=NULL)
             {
@@ -103,20 +113,22 @@ int main(int argc, char * argv[])
             
             }
             numOfStmt = idx;
-            rcArr = (int*)malloc(sizeof(int)*numOfStmt);
-            wcArr = (int*)malloc(sizeof(int)*numOfStmt);
+            pidArr = (int*)malloc(sizeof(int)*numOfStmt);
     
+            //fork numOfStmt times
             for(i=0; i<numOfStmt; i++)
             {
     
-                rcArr[i] = fork();
-                if(rcArr[i]<0)
+                pidArr[i] = fork();
+                if(pidArr[i]<0)
                 {
                     fprintf(stderr, "fork failed\n");
                     exit(1);
                 }
-                else if(rcArr[i]==0)
+                //child process
+                else if(pidArr[i]==0)
                 {
+                    //separate string by " "
                     idx = 0;
                     ptr = strtok(stmtArr[i], " ");
             
@@ -126,25 +138,27 @@ int main(int argc, char * argv[])
                         ptr = strtok(NULL, " ");
                     
                     }
+                    //function execvp needs NULL with last argument
                     strArr[idx] = NULL;
                     if(execvp(strArr[0], strArr)<0)
                     {
                         exit(1);
                     }
                 }
-                else
-                {
-                    wcArr[i] = wait(NULL);
-  //                 printf(" pid ; %d, ppid : %d\n", i+1,rcArr[i],getpid());
-    
-                }
     
             }
-            free(rcArr);
-            free(wcArr);
+            //parent process
+            for(i=0 ; i<numOfStmt; i++)
+            {
+                wait(NULL);
+  //              printf(" pid ; %d, ppid : %d\n",pidArr[i],getpid());
+               
+            }
+            free(pidArr);
         }
+        fclose(fp);
     }
-    else //error case
+    else //argv>2 , argument overflow
     {
         puts("./shell (no argument) : interactive mode");
         puts("./shell batchfile : batch mode");
@@ -153,3 +167,4 @@ int main(int argc, char * argv[])
 
     
 }
+
