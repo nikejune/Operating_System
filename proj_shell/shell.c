@@ -39,7 +39,7 @@ int main(int argc, char * argv[])
                 ptr = strtok(NULL, ";");
             }
             numOfStmt = idx;
-            pidArr = (int*)malloc(sizeof(int) * numOfStmt);
+            pidArr = (int *)malloc(sizeof(int) * numOfStmt);
     
             //fork numOfStmt times
             for(i = 0; i < numOfStmt; i++) {
@@ -90,7 +90,7 @@ int main(int argc, char * argv[])
                 ptr = strtok(NULL, ";");
             }
             numOfStmt = idx;
-            pidArr = (int*)malloc(sizeof(int) * numOfStmt);
+            pidArr = (int *)malloc(sizeof(int) * numOfStmt);
     
             //fork numOfStmt times
             for(i = 0; i < numOfStmt; i++) {
