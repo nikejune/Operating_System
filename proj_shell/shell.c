@@ -59,6 +59,7 @@ int main(int argc, char * argv[])
                     //function execvp needs NULL with last argument
                     strArr[idx] = NULL;
                     if(execvp(strArr[0], strArr) < 0) {
+                        printf("%s: command not found\n", strArr[0]);
                         exit(1);
                     }
                 }
@@ -109,6 +110,7 @@ int main(int argc, char * argv[])
                     //function execvp needs NULL with last argument
                     strArr[idx] = NULL;
                     if(execvp(strArr[0], strArr) < 0) {
+                        printf("%s: command not found\n", strArr[0]);
                         exit(1);
                     }
                 }
