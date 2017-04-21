@@ -14,6 +14,14 @@ struct {
 
 static struct proc *initproc;
 
+int totaltick ;
+
+int mlfqStride=0;
+int mlfqCPUshare=100;
+int mlfqpass=0;
+
+int i; //debug
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -49,7 +57,13 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-
+  p->level =0;
+  p->tick[0] =0;
+  p->tick[1] =0;
+  p->tick[2] =0;
+  p->cpu_share =0;
+  p->stride = 0;
+  p->pass =0;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -72,7 +86,6 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
   return p;
 }
 
@@ -236,7 +249,7 @@ wait(void)
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
-    havekids = 0;
+     havekids = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->parent != proc)
         continue;
@@ -280,35 +293,136 @@ void
 scheduler(void)
 {
   struct proc *p;
+  for(;;)
+  {
+      sti();
 
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
-
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
+      acquire(&ptable.lock);
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+       if(p->state != RUNNABLE)
+           continue;
       proc = p;
       switchuvm(p);
-      p->state = RUNNING;
+      p->state = RUNNING; 
       swtch(&cpu->scheduler, p->context);
       switchkvm();
-
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
     }
     release(&ptable.lock);
-
   }
 }
+/*
+  struct proc *p;
+  struct proc *minp;
+  int min_pass;
+  int check;
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    check =0;
+    min_pass = 1000000;
+    minp = 0;
 
+    //if mlfqPASS exceed to 100000,
+    //all pass of processes reset to 0.
+    if(mlfqpass>=100000){  
+       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+            p->pass = 0;
+       mlfqpass = 0;
+    }
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->cpu_share==0) // Not process in MLFQ
+            continue;
+        if(p->state != RUNNABLE)
+            continue;
+        if(min_pass<=p->pass)
+            continue;
+        min_pass = p->pass;
+        minp = p;
+        check =1;
+    }
+    if(check && (min_pass < mlfqpass))
+    {
+        p = minp;
+        p->pass +=p->stride;
+//        cprintf("stride %d, mlfq%d\n", minp->pass, mlfqpass);
+    } 
+    
+    else{ 
+    check =0;  // if check is 0 , not excutable process in this queue
+     
+    if(totaltick >=100) // 100 ticks , priority boost
+    {
+        cprintf("up!\n");
+        totaltick =0; // total ticks reset to 0
+        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+           if(p->cpu_share !=0)
+               continue;
+           p->level=0; // Boast priorities of a process in MLFQ 
+        }
+    }
+
+    i =0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+     if(p->level !=0) // level check
+        continue;
+     if(p->state != RUNNABLE) 
+        continue;
+     if(p->cpu_share !=0) // in MLFQ
+        continue;
+     // if process is called timer interrupt 5 times,
+     // level of process go down to level 1
+     if(p->tick[p->level] >= 5) 
+     {
+        p->tick[p->level] =0;
+        p->level=1;
+     }
+      check =1;
+      break;
+    }
+    if(!check)
+    {
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->level !=1)
+           continue;
+        if(p->state != RUNNABLE)
+           continue;
+        if(p->cpu_share !=0)
+           continue;
+  
+      if(p->tick[p->level] >= 10){
+          p->tick[p->level] =0;
+          p->level=2;
+      }
+      check =1;
+     
+      break;
+     }
+    }
+    if(!check)
+    {
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->level !=2)
+           continue;
+        if(p->state != RUNNABLE)
+           continue;
+        if(p->cpu_share !=0)
+           continue;
+      if(p->tick[p->level] >= 20){
+          p->tick[p->level] =0;
+      }
+      break;
+     }
+    }
+
+      mlfqpass +=mlfqStride;
+    } 
+ */
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -482,4 +596,26 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int
+set_cpu_share(int share)
+{
+    int total =0;
+    struct proc *p;
+   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+        total += p->cpu_share;
+        p->pass = 0;
+    }
+    if(total+share>80)
+        return -1;
+    else{
+        mlfqCPUshare = 100- total-share;
+        mlfqStride = (int)(10000 / mlfqCPUshare);
+        mlfqpass =0;
+        proc->cpu_share = share;
+        proc->stride = (int)(10000 / share);
+        return share;
+    }
 }

@@ -97,3 +97,16 @@ sys_yield(void)
     yield();
     return 0;
 }
+
+int
+sys_getlev(void)
+{
+    return proc->level;
+}
+int
+sys_set_cpu_share(void)
+{
+    int stride;
+    argint(0, &stride);
+    return set_cpu_share(stride);
+}
