@@ -1,0 +1,824 @@
+cscope 15 $HOME/xv6/test_proj2 -q 0000000106 0000004095
+	@stat.h
+
+1 
+	#T_DIR
+ 1
+
+2 
+	#T_FILE
+ 2
+
+3 
+	#T_DEV
+ 3
+
+4 
+
+	)
+
+5 
+	s°©
+ {
+
+6 
+	mty≥
+;
+
+7 
+	mdev
+;
+
+8 
+uöt
+ 
+	möo
+;
+
+9 
+	m∆ök
+;
+
+10 
+uöt
+ 
+	msize
+;
+
+	@test_master.c
+
+5 
+	~"ty≥s.h
+"
+
+6 
+	~"°©.h
+"
+
+7 
+	~"u£r.h
+"
+
+10 
+	#CNT_CHILD
+ 4
+
+	)
+
+13 
+	#NAME_CHILD_STRIDE
+ "ã°_°ride"
+
+	)
+
+15 
+	#NAME_CHILD_MLFQ
+ "ã°_mlfq"
+
+	)
+
+17 *
+	gchûd_¨gv
+[
+CNT_CHILD
+][3] = {
+
+19 {
+NAME_CHILD_STRIDE
+, "10", 0},
+
+21 {
+NAME_CHILD_STRIDE
+, "40", 0},
+
+23 {
+NAME_CHILD_MLFQ
+, "0", 0},
+
+25 {
+NAME_CHILD_MLFQ
+, "1", 0},
+
+29 
+	$maö
+(
+¨gc
+, *
+¨gv
+[])
+
+31 
+pid
+;
+
+32 
+i
+;
+
+34 
+i
+ = 0; i < 
+CNT_CHILD
+; i++) {
+
+35 
+pid
+ = 
+	`f‹k
+();
+
+36 i‡(
+pid
+ > 0) {
+
+39 } i‡(
+pid
+ == 0) {
+
+41 
+	`exec
+(
+chûd_¨gv
+[
+i
+][0], child_argv[i]);
+
+42 
+	`¥ötf
+(1, "exec failed!!\n");
+
+43 
+	`exô
+();
+
+45 
+	`¥ötf
+(1, "fork failed!!\n");
+
+46 
+	`exô
+();
+
+50 
+i
+ = 0; i < 
+CNT_CHILD
+; i++) {
+
+51 
+	`waô
+();
+
+54 
+	`exô
+();
+
+55 
+	}
+}
+
+	@test_mlfq.c
+
+8 
+	~"ty≥s.h
+"
+
+9 
+	~"°©.h
+"
+
+10 
+	~"u£r.h
+"
+
+12 
+	#LIFETIME
+ 200000000
+
+13 
+	#YIELD_PERIOD
+ 10000
+
+14 
+
+	)
+
+16 
+	#MLFQ_LEVEL
+ 3
+
+	)
+
+19 
+	$maö
+(
+¨gc
+, *
+¨gv
+[])
+
+21 
+uöt
+ 
+i
+;
+
+22 
+˙t_Àvñ
+[
+MLFQ_LEVEL
+] = {0, 0, 0};
+
+23 
+do_yõld
+;
+
+24 
+cuº_mlfq_Àvñ
+;
+
+26 i‡(
+¨gc
+ < 2) {
+
+27 
+	`¥ötf
+(1, "usage: sched_test_mlfq do_yield_or_not(0|1)\n");
+
+28 
+	`exô
+();
+
+31 
+do_yõld
+ = 
+	`©oi
+(
+¨gv
+[1]);
+
+33 
+i
+ = 0;
+
+35 
+i
+++;
+
+38 
+	`__sync_synchr⁄ize
+();
+
+40 i‡(
+i
+ % 
+YIELD_PERIOD
+ == 0) {
+
+42 
+cuº_mlfq_Àvñ
+ = 
+	`gëÀv
+();
+
+43 
+˙t_Àvñ
+[
+cuº_mlfq_Àvñ
+]++;
+
+45 i‡(
+i
+ > 
+LIFETIME
+) {
+
+46 
+	`¥ötf
+(1, "MLFQ(%s),Üev[0]: %d,Üev[1]: %d,Üev[2]: %d\n",
+
+47 
+do_yõld
+==0 ? "compute" : "yield",
+
+48 
+˙t_Àvñ
+[0], cnt_level[1], cnt_level[2]);
+
+52 i‡(
+do_yõld
+) {
+
+54 
+	`yõld
+();
+
+59 
+	`exô
+();
+
+60 
+	}
+}
+
+	@test_stride.c
+
+7 
+	~"ty≥s.h
+"
+
+8 
+	~"°©.h
+"
+
+9 
+	~"u£r.h
+"
+
+11 
+	#LIFETIME
+ 1000
+
+12 
+	#COUNT_PERIOD
+ 1000000
+
+13 
+
+	)
+
+15 
+	$maö
+(
+¨gc
+, *
+¨gv
+[])
+
+17 
+uöt
+ 
+i
+;
+
+18 
+˙t
+ = 0;
+
+19 
+˝u_sh¨e
+;
+
+20 
+uöt
+ 
+°¨t_tick
+;
+
+21 
+uöt
+ 
+cuº_tick
+;
+
+23 i‡(
+¨gc
+ < 2) {
+
+24 
+	`¥ötf
+(1, "usage: sched_test_stride cpu_share(%)\n");
+
+25 
+	`exô
+();
+
+28 
+˝u_sh¨e
+ = 
+	`©oi
+(
+¨gv
+[1]);
+
+31 i‡(
+	`£t_˝u_sh¨e
+(
+˝u_sh¨e
+) < 0) {
+
+32 
+	`¥ötf
+(1, "cannot set cpu share\n");
+
+33 
+	`exô
+();
+
+37 
+°¨t_tick
+ = 
+	`u±ime
+();
+
+39 
+i
+ = 0;
+
+41 
+i
+++;
+
+44 
+	`__sync_synchr⁄ize
+();
+
+46 i‡(
+i
+ =
+COUNT_PERIOD
+) {
+
+47 
+˙t
+++;
+
+50 
+cuº_tick
+ = 
+	`u±ime
+();
+
+52 i‡(
+cuº_tick
+ - 
+°¨t_tick
+ > 
+LIFETIME
+) {
+
+54 
+	`¥ötf
+(1, "STRIDE(%d%%), c¡: %d\n", 
+˝u_sh¨e
+, 
+˙t
+);
+
+57 
+i
+ = 0;
+
+61 
+	`exô
+();
+
+62 
+	}
+}
+
+	@traps.h
+
+4 
+	#T_DIVIDE
+ 0
+
+5 
+	#T_DEBUG
+ 1
+
+6 
+	#T_NMI
+ 2
+
+7 
+	#T_BRKPT
+ 3
+
+8 
+	#T_OFLOW
+ 4
+
+9 
+	#T_BOUND
+ 5
+
+10 
+	#T_ILLOP
+ 6
+
+11 
+	#T_DEVICE
+ 7
+
+12 
+	#T_DBLFLT
+ 8
+
+14 
+	#T_TSS
+ 10
+
+15 
+	#T_SEGNP
+ 11
+
+16 
+	#T_STACK
+ 12
+
+17 
+	#T_GPFLT
+ 13
+
+18 
+	#T_PGFLT
+ 14
+
+20 
+	#T_FPERR
+ 16
+
+21 
+	#T_ALIGN
+ 17
+
+22 
+	#T_MCHK
+ 18
+
+23 
+	#T_SIMDERR
+ 19
+
+24 
+
+	)
+
+27 
+	#T_SYSCALL
+ 64
+
+28 
+	#T_DEFAULT
+ 500
+
+29 
+
+	)
+
+30 
+	#T_IRQ0
+ 32
+
+31 
+
+	)
+
+32 
+	#IRQ_TIMER
+ 0
+
+	)
+
+33 
+	#IRQ_KBD
+ 1
+
+	)
+
+34 
+	#IRQ_COM1
+ 4
+
+	)
+
+35 
+	#IRQ_IDE
+ 14
+
+	)
+
+36 
+	#IRQ_ERROR
+ 19
+
+	)
+
+37 
+	#IRQ_SPURIOUS
+ 31
+
+	)
+
+	@types.h
+
+1 
+	tuöt
+;
+
+2 
+	tush‹t
+;
+
+3 
+	tuch¨
+;
+
+4 
+uöt
+ 
+	tpde_t
+;
+
+	@user.h
+
+1 
+	g°©
+;
+
+2 
+	gπcd©e
+;
+
+5 
+f‹k
+();
+
+6 
+	$exô
+(Ë
+	`__©åibuã__
+((
+n‹ëu∫
+));
+
+7 
+	`waô
+();
+
+8 
+	`pùe
+(*);
+
+9 
+	`wrôe
+(, *, );
+
+10 
+	`ªad
+(, *, );
+
+11 
+	`˛o£
+();
+
+12 
+	`kûl
+();
+
+13 
+	`exec
+(*, **);
+
+14 
+	`›í
+(*, );
+
+15 
+	`mknod
+(*, , );
+
+16 
+	`u∆ök
+(*);
+
+17 
+	`f°©
+(
+fd
+, 
+°©
+*);
+
+18 
+	`lök
+(*, *);
+
+19 
+	`mkdú
+(*);
+
+20 
+	`chdú
+(*);
+
+21 
+	`dup
+();
+
+22 
+	`gëpid
+();
+
+23 * 
+	`sbrk
+();
+
+24 
+	`¶ìp
+();
+
+25 
+	`u±ime
+();
+
+26 
+	`my_sysˇŒ
+(*);
+
+27 
+	`yõld
+();
+
+28 
+	`gëÀv
+();
+
+29 
+	`£t_˝u_sh¨e
+();
+
+32 
+	`°©
+(*, 
+°©
+*);
+
+33 * 
+	`°r˝y
+(*, *);
+
+34 *
+	`memmove
+(*, *, );
+
+35 * 
+	`°rchr
+(c⁄° *, 
+c
+);
+
+36 
+	`°rcmp
+(const *, const *);
+
+37 
+	`¥ötf
+(, *, ...);
+
+38 * 
+	`gës
+(*, 
+max
+);
+
+39 
+uöt
+ 
+	`°æí
+(*);
+
+40 * 
+	`mem£t
+(*, , 
+uöt
+);
+
+41 * 
+	`mÆloc
+(
+uöt
+);
+
+42 
+	`‰ì
+(*);
+
+43 
+	`©oi
+(const *);
+
+	@
+1
+.
+0
+7
+70
+stat.h
+test_master.c
+test_mlfq.c
+test_stride.c
+traps.h
+types.h
+user.h

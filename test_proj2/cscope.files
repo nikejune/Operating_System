@@ -1,0 +1,7 @@
+./test_master.c
+./user.h
+./test_mlfq.c
+./traps.h
+./stat.h
+./test_stride.c
+./types.h
