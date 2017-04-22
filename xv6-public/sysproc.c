@@ -94,6 +94,13 @@ sys_uptime(void)
 int
 sys_yield(void)
 {
+
+    acquire(&tickslock);
+//    if(ticks){
+        proc->tick++;
+        totaltick++;
+//    }
+    release(&tickslock);
     yield();
     return 0;
 }

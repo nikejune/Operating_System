@@ -14,11 +14,12 @@ struct {
 
 static struct proc *initproc;
 int totaltick;
+int prevtick;
+int mlfq_stride =0;
+int mlfq_cpu_share=100;
+int mlfq_pass=0;
 
-static int mlfq_stride =0;
-static int mlfq_cpu_share=100;
-static int mlfq_pass=0;
-
+int debug=0;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -284,8 +285,42 @@ wait(void)
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
 void
-swtchp(struct proc * p)
+priorityboast (void)
 {
+  struct proc * p; 
+  if(totaltick>=100){
+      totaltick =0;
+ //     cprintf("booast!\n");
+      totaltick =0;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+         // if( p->cpu_share==0){
+              p->tick=0;
+              p->level = 0;
+        //  }
+      }
+  }
+}
+void
+swtchp(struct proc * p, int idx)
+{/*
+   if(debug){
+    switch(idx)
+    {
+       case 0:
+            cprintf("level0%d\n",ticks);
+            break;
+       case 1:
+            cprintf("level1%d\n",ticks);
+            break;
+       case 2:
+            cprintf("level2%d\n",ticks);
+            break;
+       case 3:
+            cprintf("stride%d\n",ticks);
+            break;
+    }
+  }*/
+      prevtick = ticks; 
       proc = p;
       switchuvm(p);
       p->state = RUNNING; 
@@ -293,75 +328,74 @@ swtchp(struct proc * p)
       switchkvm();
       // Process is done running for now.
       // It should have changed its p->state before coming back.
+      priorityboast();
       proc = 0;
     
 }
-void
-priorityboast (void)
-{
-  struct proc * p; 
-  if(totaltick>=100){
-      cprintf("booast!\n");
-      totaltick =0;
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-          if( p->cpu_share==0){
-              p->tick=0;
-              p->level = 0;
-          }
-      }
-  }
-}
+
 
 void
 mlfq (void)
 {
     struct proc * p;
-    int check =0;
+    int qcheck =0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+     
+          if(p->level==0 && p->tick >= 5)
+        {
+            if(debug)
+           //     cprintf("level0, %p\n", p);
+            p->tick =0;
+            p->level= 1;
+
+        }
+        //priority down
+        if(p->level ==1 && p->tick >= 10)
+        {
+            if(debug)
+       //         cprintf("level1 \n");
+            p->tick =0;
+            p->level= 2;
+        }
+        if(p->level ==2 && p->tick >= 20)
+        {
+            if(debug)
+         //       cprintf("level2 \n");
+          p->tick =0;
+        }
+        } 
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         if(p->state != RUNNABLE || p->level !=0|| p->cpu_share!=0)
            continue;
         //priority down
-        if(p->tick >= 5)
-        {
-            p->tick =0;
-            p->level= 1;
-        }
-        priorityboast();
-        swtchp(p);
-        check=1;
+       //      priorityboast();
+        swtchp(p,0);
+        qcheck=1;
       }
 
-    if(!check){
+    if(!qcheck){
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        
         if(p->state != RUNNABLE || p->level !=1 || p->cpu_share!=0)
            continue;
-        //priority down
-        if(p->tick >= 10)
-        {
-            p->tick =0;
-            p->level= 2;
-        }
-        priorityboast();
-        swtchp(p);
-        check =1;
+   //    priorityboast();
+        swtchp(p,1);
+        qcheck =1;
       }
       }
-      if(!check){
+      if(!qcheck){
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         
         if(p->state != RUNNABLE || p->level !=2 || p->cpu_share!=0)
            continue;
         //tick reset to 0
-        if(p->tick >= 20)
-        {
-          p->tick =0;
-        }
-        priorityboast();
-        swtchp(p);
+     //  priorityboast();
+        swtchp(p,2);
       }
       }
-}
+   
+
+    };
 
 void
 scheduler(void)
@@ -370,11 +404,9 @@ scheduler(void)
   struct proc *minp;
   int check;
   int min_pass;
-
   for(;;)
   {
       sti();
-      
       check =0;
       min_pass = 200000;
       minp = 0;
@@ -399,11 +431,13 @@ scheduler(void)
         check =1;
     if(check)
     {
+        debug=1;
        minp->pass +=minp->stride;
-       swtchp(minp);
+       swtchp(minp,3);
 //     cprintf("stride %d, mlfq%d\n", minp->pass, mlfqpass);
     }
     else{
+
        mlfq_pass +=mlfq_stride;
        mlfq();
     }
@@ -590,15 +624,20 @@ set_cpu_share(int share)
 {
     int total =0;
     struct proc *p;
-   acquire(&ptable.lock);
+  
+    if(share<=0)
+        cprintf("share value cannot be negative\n");
+
+    acquire(&ptable.lock);
    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
         total += p->cpu_share;
-        p->pass = 0;
     }
    release(&ptable.lock);
-    if(total+share>80)
+    if(total+share>80){
+        cprintf(" CPU share of stride value exceed 80%!\n");
         return -1;
+    }
     else{
         mlfq_cpu_share = 100- total-share;
         mlfq_stride = (int)(10000 / mlfq_cpu_share);

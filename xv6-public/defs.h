@@ -103,6 +103,8 @@ int             pipewrite(struct pipe*, char*, int);
 
 //PAGEBREAK: 16
 // proc.c
+extern int      totaltick;
+extern int      prevtick;
 void            exit(void);
 int             fork(void);
 int             growproc(int);

@@ -114,10 +114,12 @@ trap(struct trapframe *tf)
   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
   {
 
-      if(proc->stride ==0)
+      if(proc->cpu_share ==0)
       {
+      acquire(&tickslock);
           proc->tick++;
          totaltick++;
+      release(&tickslock);
       }
       yield();
   }
