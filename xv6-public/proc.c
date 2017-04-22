@@ -13,12 +13,11 @@ struct {
 } ptable;
 
 static struct proc *initproc;
+int totaltick;
 
-int totaltick ;
-
-int mlfqStride=0;
-int mlfqCPUshare=100;
-int mlfqpass=0;
+static int mlfq_stride =0;
+static int mlfq_cpu_share=100;
+static int mlfq_pass=0;
 
 int nextpid = 1;
 extern void forkret(void);
@@ -56,14 +55,11 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
   p->level =0;
-  p->tick[0] =0;
-  p->tick[1] =0;
-  p->tick[2] =0;
+  p->tick =0;
   p->cpu_share =0;
   p->stride = 0;
   p->pass =0;
   release(&ptable.lock);
-
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     p->state = UNUSED;
@@ -96,7 +92,7 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
-  
+
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -290,7 +286,6 @@ wait(void)
 void
 swtchp(struct proc * p)
 {
-
       proc = p;
       switchuvm(p);
       p->state = RUNNING; 
@@ -301,181 +296,120 @@ swtchp(struct proc * p)
       proc = 0;
     
 }
+void
+priorityboast (void)
+{
+  struct proc * p; 
+  if(totaltick>=100){
+      cprintf("booast!\n");
+      totaltick =0;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+          if( p->cpu_share==0){
+              p->tick=0;
+              p->level = 0;
+          }
+      }
+  }
+}
+
+void
+mlfq (void)
+{
+    struct proc * p;
+    int check =0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE || p->level !=0|| p->cpu_share!=0)
+           continue;
+        //priority down
+        if(p->tick >= 5)
+        {
+            p->tick =0;
+            p->level= 1;
+        }
+        priorityboast();
+        swtchp(p);
+        check=1;
+      }
+
+    if(!check){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        
+        if(p->state != RUNNABLE || p->level !=1 || p->cpu_share!=0)
+           continue;
+        //priority down
+        if(p->tick >= 10)
+        {
+            p->tick =0;
+            p->level= 2;
+        }
+        priorityboast();
+        swtchp(p);
+        check =1;
+      }
+      }
+      if(!check){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        
+        if(p->state != RUNNABLE || p->level !=2 || p->cpu_share!=0)
+           continue;
+        //tick reset to 0
+        if(p->tick >= 20)
+        {
+          p->tick =0;
+        }
+        priorityboast();
+        swtchp(p);
+      }
+      }
+}
 
 void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *minp;
   int check;
+  int min_pass;
+
   for(;;)
   {
       sti();
+      
+      check =0;
+      min_pass = 200000;
+      minp = 0;
 
       acquire(&ptable.lock);
-      check =0;
-      //priority boast
-      if(totaltick>=100){
-          totaltick =0;
-          for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-              if(p->cpu_share != RUNNABLE || p->cpu_share!=0)
-                  continue;
-              p->tick[p->level]=0;
-              p->level = 0;
-        }
-      }
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->state != RUNNABLE || p->level !=0)
-           continue;
-        //priority down
-        if(p->tick[p->level] >= 5)
-        {
-            p->tick[p->level] =0;
-            p->level= 1;
-        }
-        swtchp(p);
-        check =1;
-      
-      }
-      if(!check){
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        
-        if(p->state != RUNNABLE || p->level !=1)
-           continue;
-        //priority down
-        if(p->tick[p->level] >= 10)
-        {
-            p->tick[p->level] =0;
-            p->level= 2;
-        }
-        swtchp(p);
-        check =1;
-      }
-      }
-      if(!check){
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        
-        if(p->state != RUNNABLE || p->level !=2)
-           continue;
-        //tick reset to 0
-        if(p->tick[p->level] >= 20)
-        {
-          p->tick[p->level] =0;
-        }
-        swtchp(p);
-      }
-      }
-    release(&ptable.lock);
-  }
-}/*
-  struct proc *p;
-  struct proc *minp;
-  int min_pass;
-  int check;
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    check =0;
-    min_pass = 1000000;
-    minp = 0;
-
-    //if mlfqPASS exceed to 100000,
-    //all pass of processes reset to 0.
-    if(mlfqpass>=100000){  
+    //all pass value reset
+    if(mlfq_pass>=100000){  
        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-            p->pass = 0;
-       mlfqpass = 0;
-    }
+           if(p->pass !=0)
+               p->pass = 0;
+       mlfq_pass = 0;
+   }
 
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->cpu_share==0) // Not process in MLFQ
-            continue;
-        if(p->state != RUNNABLE)
-            continue;
-        if(min_pass<=p->pass)
-            continue;
-        min_pass = p->pass;
-        minp = p;
-        check =1;
-    }
-    if(check && (min_pass < mlfqpass))
-    {
-        p = minp;
-        p->pass +=p->stride;
-//        cprintf("stride %d, mlfq%d\n", minp->pass, mlfqpass);
-    } 
-    
-    else{ 
-    check =0;  // if check is 0 , not excutable process in this queue
-     
-    if(totaltick >=100) // 100 ticks , priority boost
-    {
-        cprintf("up!\n");
-        totaltick =0; // total ticks reset to 0
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-           if(p->cpu_share !=0)
-               continue;
-           p->level=0; // Boast priorities of a process in MLFQ 
+        if(p->cpu_share >0 &&  p->state==RUNNABLE &&  (min_pass > p->pass) ) // Not process in MLFQ
+        {
+            min_pass = p->pass;
+            minp = p;
         }
-    }
-
-    i =0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-     if(p->level !=0) // level check
-        continue;
-     if(p->state != RUNNABLE) 
-        continue;
-     if(p->cpu_share !=0) // in MLFQ
-        continue;
-     // if process is called timer interrupt 5 times,
-     // level of process go down to level 1
-     if(p->tick[p->level] >= 5) 
-     {
-        p->tick[p->level] =0;
-        p->level=1;
-     }
-      check =1;
-      break;
-    }
-    if(!check)
-    {
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->level !=1)
-           continue;
-        if(p->state != RUNNABLE)
-           continue;
-        if(p->cpu_share !=0)
-           continue;
-  
-      if(p->tick[p->level] >= 10){
-          p->tick[p->level] =0;
-          p->level=2;
       }
-      check =1;
-     
-      break;
-     }
-    }
-    if(!check)
+    if(minp !=0 && (min_pass < mlfq_pass))
+        check =1;
+    if(check)
     {
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->level !=2)
-           continue;
-        if(p->state != RUNNABLE)
-           continue;
-        if(p->cpu_share !=0)
-           continue;
-      if(p->tick[p->level] >= 20){
-          p->tick[p->level] =0;
-      }
-      break;
-     }
+       minp->pass +=minp->stride;
+       swtchp(minp);
+//     cprintf("stride %d, mlfq%d\n", minp->pass, mlfqpass);
     }
-
-      mlfqpass +=mlfqStride;
-    } 
- */
+    else{
+       mlfq_pass +=mlfq_stride;
+       mlfq();
+    }
+     release(&ptable.lock);
+  }
+}
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -656,17 +590,18 @@ set_cpu_share(int share)
 {
     int total =0;
     struct proc *p;
+   acquire(&ptable.lock);
    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
         total += p->cpu_share;
         p->pass = 0;
     }
+   release(&ptable.lock);
     if(total+share>80)
         return -1;
     else{
-        mlfqCPUshare = 100- total-share;
-        mlfqStride = (int)(10000 / mlfqCPUshare);
-        mlfqpass =0;
+        mlfq_cpu_share = 100- total-share;
+        mlfq_stride = (int)(10000 / mlfq_cpu_share);
         proc->cpu_share = share;
         proc->stride = (int)(10000 / share);
         return share;

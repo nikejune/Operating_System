@@ -15,6 +15,7 @@ extern int totaltick;
 struct spinlock tickslock;
 uint ticks;
 
+
 void
 tvinit(void)
 {
@@ -112,9 +113,12 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
   {
-      proc->tick[proc->level]++;
-      if(proc->cpu_share ==0)
-          totaltick++;
+
+      if(proc->stride ==0)
+      {
+          proc->tick++;
+         totaltick++;
+      }
       yield();
   }
 

@@ -46,9 +46,6 @@ main(int argc, char *argv[])
                 printf(1, "MLFQ(%s), lev[0]: %d, lev[1]: %d, lev[2]: %d\n",
                         do_yield==0 ? "compute" : "yield",
                         cnt_level[0], cnt_level[1], cnt_level[2]);
-               if(do_yield){
-                printf(1, "yield man kkkk\n");
-               }
                 break;
             }
 

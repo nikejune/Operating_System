@@ -64,7 +64,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int level;                   // Queue level
-  int tick[3];                 // Time in queue
+  int tick;                 // Time in queue
   int cpu_share;
   int stride;
   int pass;
