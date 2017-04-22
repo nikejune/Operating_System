@@ -20,8 +20,6 @@ int mlfqStride=0;
 int mlfqCPUshare=100;
 int mlfqpass=0;
 
-int i; //debug
-
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -290,17 +288,9 @@ wait(void)
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
 void
-scheduler(void)
+swtchp(struct proc * p)
 {
-  struct proc *p;
-  for(;;)
-  {
-      sti();
 
-      acquire(&ptable.lock);
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-       if(p->state != RUNNABLE)
-           continue;
       proc = p;
       switchuvm(p);
       p->state = RUNNING; 
@@ -309,11 +299,74 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
-    }
+    
+}
+
+void
+scheduler(void)
+{
+  struct proc *p;
+  int check;
+  for(;;)
+  {
+      sti();
+
+      acquire(&ptable.lock);
+      check =0;
+      //priority boast
+      if(totaltick>=100){
+          totaltick =0;
+          for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+              if(p->cpu_share != RUNNABLE || p->cpu_share!=0)
+                  continue;
+              p->tick[p->level]=0;
+              p->level = 0;
+        }
+      }
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE || p->level !=0)
+           continue;
+        //priority down
+        if(p->tick[p->level] >= 5)
+        {
+            p->tick[p->level] =0;
+            p->level= 1;
+        }
+        swtchp(p);
+        check =1;
+      
+      }
+      if(!check){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        
+        if(p->state != RUNNABLE || p->level !=1)
+           continue;
+        //priority down
+        if(p->tick[p->level] >= 10)
+        {
+            p->tick[p->level] =0;
+            p->level= 2;
+        }
+        swtchp(p);
+        check =1;
+      }
+      }
+      if(!check){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        
+        if(p->state != RUNNABLE || p->level !=2)
+           continue;
+        //tick reset to 0
+        if(p->tick[p->level] >= 20)
+        {
+          p->tick[p->level] =0;
+        }
+        swtchp(p);
+      }
+      }
     release(&ptable.lock);
   }
-}
-/*
+}/*
   struct proc *p;
   struct proc *minp;
   int min_pass;
