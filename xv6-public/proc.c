@@ -13,13 +13,13 @@ struct {
 } ptable;
 
 static struct proc *initproc;
-int totaltick;
-int prevtick;
-int mlfq_stride =0;
-int mlfq_cpu_share=100;
-int mlfq_pass=0;
 
-int debug=0;
+//additional variable
+int totaltick;              // Timer interrupt or sys_yield increase this value
+int mlfq_stride =0;         // Stride of mlfq scheduler like a process  
+int mlfq_cpu_share=100;     // CPU_share of mlfq scheduler like a process
+int mlfq_pass=0;            // Pass value of mlfq scheduler like a process
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -55,11 +55,13 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  //additional init 
   p->level =0;
   p->tick =0;
   p->cpu_share =0;
   p->stride = 0;
   p->pass =0;
+
   release(&ptable.lock);
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
@@ -259,6 +261,15 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
+        //addition restoration
+        p->tick = 0;
+        p->level = 0;
+        mlfq_cpu_share += p->cpu_share;
+        mlfq_stride = (int)(10000 / mlfq_cpu_share);
+        p->cpu_share = 0;
+        p->stride = 0;
+        p->pass =0;
+        //
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -276,6 +287,106 @@ wait(void)
   }
 }
 
+// If totaltick exceed to 100,
+// It reset to 0 and all prcocess->tick and process->level reset to 0.    
+void
+priorityboost (void)
+{
+  struct proc * p; 
+  if(totaltick >= 100)
+  {
+      totaltick = 0;
+      cprintf("boost!\n");
+      totaltick =0;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+      {
+              p->tick = 0;
+              p->level = 0;
+      }
+  }
+}
+
+// This function(statement) was originally located at scheduler function.
+// Only priorityboost function was added. 
+void
+swtchp(struct proc * p, int idx)
+{
+      proc = p;
+      switchuvm(p);
+      p->state = RUNNING; 
+      swtch(&cpu->scheduler, p->context);
+      switchkvm();
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+     
+      // idx ==3 means it called from stride scheduling , so it don't need priorityboost.
+      if(idx != 3)
+      {
+          priorityboost();
+      }
+      proc = 0;
+    
+}
+
+// Stride Scheduler judged that it was mlfq turn,  this function called.
+// It looks like mlfq function is a process for Stride Scheduler.
+void
+mlfq (void)
+{
+    struct proc * p;
+    // If qcheck is 0, MLFQ scheduler continue to check
+    // which process is suitable for selection at the following level.
+    // If qcheck is 1, it doesn't check next level. 
+    int qcheck = 0;        
+
+    // Priority down
+    // If level 0 , level1, and level2 are each 5 ticks, 10 ticks, and 20 ticks,
+    // its level goes down. (But level2 is the lowest level, so keep it.)
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->level == 0 && p->tick >= 5)
+        {
+            p->tick = 0;
+            p->level= 1;
+        }
+        if(p->level == 1 && p->tick >= 10)
+        {
+            p->tick = 0;
+            p->level= 2;
+        }
+        if(p->level == 2 && p->tick >= 20)
+        {
+          p->tick = 0;
+        }
+    } 
+
+    //process state RUNNABLE && process level 0 && process in MLFQ, choice process by RR.
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE || p->level != 0 || p->cpu_share != 0)
+           continue;
+        swtchp(p,0);
+        qcheck = 1;  // It don't need to check level 1, 2
+      }
+
+    //process state RUNNABLE && process level 1 && process in MLFQ, choice process by RR.
+    if(!qcheck){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state != RUNNABLE || p->level != 1 || p->cpu_share != 0)
+           continue;
+        swtchp(p,1);
+        qcheck = 1;  // It don't need to check level 2
+      }
+    }
+    //process state RUNNABLE && process level 2 && process in MLFQ, choice process by RR.
+    if(!qcheck){
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        
+        if(p->state != RUNNABLE || p->level !=2 || p->cpu_share != 0)
+           continue;
+        swtchp(p,2);
+      }
+    }
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -284,164 +395,66 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-void
-priorityboast (void)
-{
-  struct proc * p; 
-  if(totaltick>=100){
-      totaltick =0;
- //     cprintf("booast!\n");
-      totaltick =0;
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-         // if( p->cpu_share==0){
-              p->tick=0;
-              p->level = 0;
-        //  }
-      }
-  }
-}
-void
-swtchp(struct proc * p, int idx)
-{/*
-   if(debug){
-    switch(idx)
-    {
-       case 0:
-            cprintf("level0%d\n",ticks);
-            break;
-       case 1:
-            cprintf("level1%d\n",ticks);
-            break;
-       case 2:
-            cprintf("level2%d\n",ticks);
-            break;
-       case 3:
-            cprintf("stride%d\n",ticks);
-            break;
-    }
-  }*/
-      prevtick = ticks; 
-      proc = p;
-      switchuvm(p);
-      p->state = RUNNING; 
-      swtch(&cpu->scheduler, p->context);
-      switchkvm();
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      priorityboast();
-      proc = 0;
-    
-}
 
-
-void
-mlfq (void)
-{
-    struct proc * p;
-    int qcheck =0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-     
-          if(p->level==0 && p->tick >= 5)
-        {
-            if(debug)
-           //     cprintf("level0, %p\n", p);
-            p->tick =0;
-            p->level= 1;
-
-        }
-        //priority down
-        if(p->level ==1 && p->tick >= 10)
-        {
-            if(debug)
-       //         cprintf("level1 \n");
-            p->tick =0;
-            p->level= 2;
-        }
-        if(p->level ==2 && p->tick >= 20)
-        {
-            if(debug)
-         //       cprintf("level2 \n");
-          p->tick =0;
-        }
-        } 
-
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->state != RUNNABLE || p->level !=0|| p->cpu_share!=0)
-           continue;
-        //priority down
-       //      priorityboast();
-        swtchp(p,0);
-        qcheck=1;
-      }
-
-    if(!qcheck){
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->state != RUNNABLE || p->level !=1 || p->cpu_share!=0)
-           continue;
-   //    priorityboast();
-        swtchp(p,1);
-        qcheck =1;
-      }
-      }
-      if(!qcheck){
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        
-        if(p->state != RUNNABLE || p->level !=2 || p->cpu_share!=0)
-           continue;
-        //tick reset to 0
-     //  priorityboast();
-        swtchp(p,2);
-      }
-      }
-   
-
-    };
-
+// scheduler function handles processes by Stride Scheduling.
+// 1. Find the minimum pass of process.
+// 2. Compare it with MLFQ pass.
+// 3. If it is smaller than MLFQ pass, execute it.
+// 4. Otherwise execute MLFQ function (like a process)
 void
 scheduler(void)
 {
   struct proc *p;
   struct proc *minp;
-  int check;
   int min_pass;
+  int check;
+  // If check is 0, Stride scheduler go to MLFQ scheduler( like a process).
+  // If check is 1, Stride scheduler execute minimum pass value process.(not process in MLFQ)
+  
   for(;;)
   {
       sti();
-      check =0;
+      check = 0;
+ 
       min_pass = 200000;
-      minp = 0;
+      minp = 0;             // NULL
 
       acquire(&ptable.lock);
-    //all pass value reset
-    if(mlfq_pass>=100000){  
-       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-           if(p->pass !=0)
-               p->pass = 0;
-       mlfq_pass = 0;
-   }
-
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->cpu_share >0 &&  p->state==RUNNABLE &&  (min_pass > p->pass) ) // Not process in MLFQ
-        {
+   
+      // If mlfq_pass exceed to 100000, all pass value reset 0 to prevent overflow.
+      if(mlfq_pass >= 100000){ 
+          mlfq_pass = 0;
+          for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+              if(p->pass != 0)
+                  p->pass = 0;
+          }
+      }
+  
+      // Find the mininum pass value
+      // Condition : cpu_share > 0 (has stride) && process state RUNNABLE
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+          if(p->cpu_share >0 &&  p->state == RUNNABLE && (min_pass > p->pass)){
             min_pass = p->pass;
             minp = p;
-        }
+          }
       }
-    if(minp !=0 && (min_pass < mlfq_pass))
-        check =1;
-    if(check)
-    {
-        debug=1;
-       minp->pass +=minp->stride;
-       swtchp(minp,3);
-//     cprintf("stride %d, mlfq%d\n", minp->pass, mlfqpass);
-    }
-    else{
-
-       mlfq_pass +=mlfq_stride;
-       mlfq();
-    }
-     release(&ptable.lock);
+   
+      // Comparing min_pass to mlfq_pass, If min_pass is smaller than mlfq_pass and minp is not NULL,
+      // check value turns 0 to 1.
+      if(minp != 0 && (min_pass < mlfq_pass))
+          check = 1;
+     
+      // check == 1 , execute process in SS
+      if(check){
+          minp->pass += minp->stride;
+          swtchp(minp,3);
+      }
+      // check == 0 , execute process in MLFQ
+      else{
+          mlfq_pass +=mlfq_stride;
+          mlfq();
+      }
+      release(&ptable.lock);
   }
 }
 // Enter scheduler.  Must hold only ptable.lock
@@ -619,27 +632,33 @@ procdump(void)
   }
 }
 
+// when user process request to set CPU share, sys_set_cpu_share is called,
+// and sys_set_cpu_share called this function with argument 'share'.
+// It change mlfq_stride, mlfq_cpu_share, proc->stride, and proc->cpu_share.
+// If 'share' is exceed to 80%, return -1 (error), else return 'share'.
 int
 set_cpu_share(int share)
 {
-    int total =0;
     struct proc *p;
+    int total = 0;      // CPU share of process in Stride Scheduling.
   
-    if(share<=0)
+    // No negative share.
+    if(share <= 0)
         cprintf("share value cannot be negative\n");
 
     acquire(&ptable.lock);
-   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    {
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
         total += p->cpu_share;
     }
-   release(&ptable.lock);
-    if(total+share>80){
-        cprintf(" CPU share of stride value exceed 80%!\n");
+    release(&ptable.lock);
+
+    // Process in Stride Scheduling cannot exceed to 80% of cpu time.
+    if(total + share > 80){
+        cprintf(" CPU share of stride value cannot exceed to 80 percents of cpu time!\n");
         return -1;
     }
     else{
-        mlfq_cpu_share = 100- total-share;
+        mlfq_cpu_share = 100 - total - share;
         mlfq_stride = (int)(10000 / mlfq_cpu_share);
         proc->cpu_share = share;
         proc->stride = (int)(10000 / share);

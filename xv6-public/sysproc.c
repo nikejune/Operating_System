@@ -90,17 +90,23 @@ sys_uptime(void)
   return xticks;
 }
 
-
+// When user process called yield function, eventually called sys_yield.
+// But, kernel process called yield function, it is not been through system call, so sys_yield is not called.
+// Calling yield function in user process might cause a problem for gaming scheduling.
+// Static variable yieldcheck manages to increase proc->tick and totaltick.
+// I designed current process portion in Stride scheduling is the scale to decide whether to do yield.
 int
 sys_yield(void)
 {
-
-    acquire(&tickslock);
-//    if(ticks){
+    static int yieldcheck = 0;
+    int ss_cpu_share = 100 -mlfq_cpu_share;
+    yieldcheck += ss_cpu_share;
+    if(yieldcheck>100)
+    {
+        yieldcheck -= 100;
         proc->tick++;
         totaltick++;
-//    }
-    release(&tickslock);
+    }
     yield();
     return 0;
 }

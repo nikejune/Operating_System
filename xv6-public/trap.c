@@ -113,7 +113,9 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
   if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
   {
-
+      //If proc->cpu_share is 0, it means current process is not in Stride Scheduling, but in MLFQ.
+      //Process in MLFQ Scheduling must increase value of tick, and totaltick.
+      //Process in Stride Scheduling do not need tick++ and, totaltick++.
       if(proc->cpu_share ==0)
       {
       acquire(&tickslock);

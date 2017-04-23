@@ -104,7 +104,7 @@ int             pipewrite(struct pipe*, char*, int);
 //PAGEBREAK: 16
 // proc.c
 extern int      totaltick;
-extern int      prevtick;
+extern int      mlfq_cpu_share;
 void            exit(void);
 int             fork(void);
 int             growproc(int);

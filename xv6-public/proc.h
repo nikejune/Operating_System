@@ -63,11 +63,13 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  int level;                   // Queue level
-  int tick;                 // Time in queue
-  int cpu_share;
-  int stride;
-  int pass;
+  //MLFQ Scheduling
+  int level;                   // Process level in MLFQ
+  int tick;                    // value how many process called from timer interrupt
+  //Stride Scheduling
+  int cpu_share;               // certain amount of CPU share
+  int stride;                  // 10000 / cpu_share
+  int pass;                    // execute time * stride value
 };
 
 // Process memory is laid out contiguously, low addresses first:
