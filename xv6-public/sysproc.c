@@ -111,11 +111,14 @@ sys_yield(void)
     return 0;
 }
 
+// Return process level.
 int
 sys_getlev(void)
 {
     return proc->level;
 }
+
+// return set_cpu_share function.
 int
 sys_set_cpu_share(void)
 {
