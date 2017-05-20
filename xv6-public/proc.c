@@ -743,7 +743,6 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   //thread additional operation
   if(copyout(np->pgdir, sp, ustack, (2)*4) < 0)
   {
-      cprintf("%d ", np->thread_id);
       cprintf("copy stack failed\n");
       return -1;
   }
@@ -759,8 +758,8 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   np->state = RUNNABLE;
     release(&ptable.lock);
  
-    cprintf("threadid : %d, stack address :%d\n", np->thread_id, np->th_stack);
-    cprintf("current numofthread : %d \n", np->parent->numofthread);
+ //   cprintf("threadid : %d, stack address :%d\n", np->thread_id, np->th_stack);
+ //   cprintf("current numofthread : %d \n", np->parent->numofthread);
  
   return pid;
 }

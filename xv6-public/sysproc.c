@@ -180,7 +180,7 @@ sys_th_join(void)
     if(argint(2, (int*)&stack)<0)
         return -1;
 
-    cprintf("threadid : %d\n", (int)id);
+//    cprintf("threadid : %d\n", (int)id);
     ret = th_join(id, retval, stack);
     return  ret;
 
