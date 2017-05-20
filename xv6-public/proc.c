@@ -12,6 +12,8 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+struct spinlock nplock;
+
 static struct proc *initproc;
 
 //additional variable
@@ -19,6 +21,10 @@ int totaltick;              // Timer interrupt or sys_yield increase this value
 int mlfq_stride =0;         // Stride of mlfq scheduler like a process  
 int mlfq_cpu_share=100;     // CPU_share of mlfq scheduler like a process
 int mlfq_pass=0;            // Pass value of mlfq scheduler like a process
+
+int szcheck = 0;
+int szcheck2 =1;
+
 
 int nextpid = 1;
 extern void forkret(void);
@@ -55,6 +61,12 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  if(p->pid>10000)
+  {
+      nextpid = 1;
+
+  }
+
   //additional init 
   p->level = 0;
   p->tick = 0;
@@ -65,6 +77,7 @@ found:
   p->numofthread = 0;
   p->th_stack =0;
   p-> retval = 0;
+
   
   release(&ptable.lock);
   // Allocate kernel stack.
@@ -170,6 +183,7 @@ fork(void)
     return -1;
   }
   np->sz = proc->sz;
+
   np->parent = proc;
   *np->tf = *proc->tf;
 
@@ -233,6 +247,7 @@ exit(void)
     }
   }
 
+  szcheck2 = 1;
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   sched();
@@ -321,7 +336,7 @@ swtchp(struct proc * p, int idx)
 {
       proc = p;
       switchuvm(p);
-      p->state = RUNNING; 
+      p->state = RUNNING;
       swtch(&cpu->scheduler, p->context);
       switchkvm();
       // Process is done running for now.
@@ -678,52 +693,34 @@ set_cpu_share(int share)
 int
 th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
 {
-  //fork.c
   int i, pid;
   struct proc *np;
-  //exec.c
   uint sp, ustack[2];
-
-//  uint stack2;
-//  char * kallocstack;
-
-
-  //fork.c start
 
   // Allocate process.
   if((np = allocproc()) == 0){
     return -1;
   }
 
-  proc->numofthread++;
-  np->thread_id = (thread_t)np->pid;
-  thread = &np->thread_id;
 
+  //PGROUNDUP
+  proc->sz = PGROUNDUP(proc->sz);
+    if((proc->sz = allocuvm(proc->pgdir, proc->sz, proc->sz + 2* PGSIZE)) == 0)
+      return -1;
 
-/*  if((kallocstack = kalloc())==0)
-  {
-      cprintf("kalloc failed\n");
-      return 0;
-  }
-  stack2 = (uint)kallocstack;
-  stack2 += PGSIZE - stack2 % PGSIZE;
-  */
-
+  np->th_stack = proc->sz;
   // Copy process state from p.
   np->pgdir = proc->pgdir;
-/*
-   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
-  }
-  */
+
+  // np additional setup 
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-  np->th_stack = stack;
-//  np->th_stack = stack2;
+  acquire(&nplock);
+  np->parent->numofthread++;
+  release(&nplock);
+  np->thread_id = (thread_t)np->pid;
+  *thread = np->thread_id;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -737,10 +734,7 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
 
   pid = np->pid;
 
-//fork.c end 
-//exec.c start
-
-  sp = stack + PGSIZE;
+  sp = np->th_stack;
 
   ustack[0] = 0xffffffff;  // fake return PC
   ustack[1] = (uint)arg;
@@ -749,6 +743,7 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   //thread additional operation
   if(copyout(np->pgdir, sp, ustack, (2)*4) < 0)
   {
+      cprintf("%d ", np->thread_id);
       cprintf("copy stack failed\n");
       return -1;
   }
@@ -756,16 +751,17 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   np->tf->eip = (uint)start_routine; // eip change
   np->tf->esp = sp;
 
-  // Commit to the user image.
-//  switchuvm(proc);
 
-//exec.c end
+  // Commit to the user image.
+  switchuvm(proc);
 
   acquire(&ptable.lock);
-  
   np->state = RUNNABLE;
     release(&ptable.lock);
-
+ 
+    cprintf("threadid : %d, stack address :%d\n", np->thread_id, np->th_stack);
+    cprintf("current numofthread : %d \n", np->parent->numofthread);
+ 
   return pid;
 }
 
@@ -833,6 +829,17 @@ th_join(thread_t thread, void** retval, uint* stack)
         *retval = p->retval;
         *stack = p->th_stack;
         p->parent->numofthread--;
+
+      if(p->parent->numofthread == 0 )
+          if((p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-20*PGSIZE)) == 0)
+           return -1;
+       
+
+     /*   if(p->parent->numofthread == 0 )
+        {  
+                  p->parent->sz = p->parent->oldsz;
+    
+        }*/
 //        if((deallocuvm(p->parent->pgdir, (uint)p->parent->sz, (uint)p->parent->sz -2* PGSIZE)) == 0)
 //            return -1;
         pid = p->pid;
@@ -875,5 +882,4 @@ th_join(thread_t thread, void** retval, uint* stack)
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
-
 }

@@ -8,7 +8,7 @@
 #define PGSIZE		4096
 
 int thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg){
-   void *stack = malloc(2*PGSIZE);
+   void *stack = (void*)1234;
 
    if ((uint)stack == 0)
    {
@@ -45,7 +45,7 @@ int thread_join(thread_t thread, void** retval){
   }
   else
   {
-   free(stack);
+   //free(stack);
    return 0;
   }
 }

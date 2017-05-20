@@ -147,8 +147,7 @@ sys_th_create(void)
         return -1;
 
     ret =  th_create(id,start_routine, arg, stack);
-    cprintf("threadid : %d, stack address :%d\n", *(int*)id,stack);
-   
+  
     return ret;
 }
 
