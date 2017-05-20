@@ -37,7 +37,6 @@ char *testname[NTEST] = {
 int
 main(int argc, char *argv[])
 {
-
   int i;
   int ret;
   int pid;
@@ -47,6 +46,7 @@ main(int argc, char *argv[])
     start = atoi(argv[1]);
   if (argc >= 3)
     end = atoi(argv[2]);
+
   for (i = start; i <= end; i++){
     printf(1,"%d. %s start\n", i, testname[i]);
     if (pipe(gpipe) < 0){
@@ -76,8 +76,6 @@ main(int argc, char *argv[])
     printf(1,"%d. %s finish\n", i, testname[i]);
     sleep(100);
   }
-
-
   exit();
 }
 
@@ -107,9 +105,10 @@ racingtest(void)
   int i;
   void *retval;
   gcnt = 0;
-
+  
   for (i = 0; i < NUM_THREAD; i++){
     if (thread_create(&threads[i], racingthreadmain, (void*)i) != 0){
+      printf(1, "panic at thread_create\n");
       return -1;
     }
   }

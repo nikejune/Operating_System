@@ -75,6 +75,7 @@ found:
   p->pass = 0;
   p->thread_id = -1;
   p->numofthread = 0;
+  p->numofthread2 = 0;
   p->th_stack =0;
   p-> retval = 0;
 
@@ -290,6 +291,7 @@ wait(void)
         p->pass =0;
         p->thread_id = -1;
         p->numofthread = 0;
+        p->numofthread2 = 0;
         p->th_stack = 0;
         p->retval = 0;
         //
@@ -718,6 +720,7 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   *np->tf = *proc->tf;
   acquire(&nplock);
   np->parent->numofthread++;
+  np->parent->numofthread2++;
   release(&nplock);
   np->thread_id = (thread_t)np->pid;
   *thread = np->thread_id;
@@ -829,9 +832,11 @@ th_join(thread_t thread, void** retval, uint* stack)
         *stack = p->th_stack;
         p->parent->numofthread--;
 
-      if(p->parent->numofthread == 0 )
-          if((p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-20*PGSIZE)) == 0)
+      if(p->parent->numofthread == 0 ){
+          if((p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-2*(p->parent->numofthread2)*PGSIZE)) == 0)
            return -1;
+          p->parent->numofthread2 =0;
+      }
        
 
      /*   if(p->parent->numofthread == 0 )

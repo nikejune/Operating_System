@@ -73,6 +73,7 @@ struct proc {
   // thread
   int thread_id;
   int numofthread;
+  int numofthread2;
   uint  th_stack;
   void* retval;
 };
