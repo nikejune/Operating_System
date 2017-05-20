@@ -126,3 +126,64 @@ sys_set_cpu_share(void)
     argint(0, &stride);
     return set_cpu_share(stride);
 }
+
+int
+sys_th_create(void)
+{
+    thread_t* id;
+    void* (*start_routine)(void*) ;
+    void* arg;
+    uint stack;
+
+    int ret;
+
+    if(argint(0, (int*)&id)< 0)
+        return -1;
+    if(argint(1, (int*)&start_routine)<0)
+        return -1;
+    if(argint(2, (int*)&arg)<0)
+        return -1;
+    if(argint(3, (int*)&stack)<0)
+        return -1;
+
+    ret =  th_create(id,start_routine, arg, stack);
+    cprintf("threadid : %d, stack address :%d\n", *(int*)id,stack);
+   
+    return ret;
+}
+
+int
+sys_th_exit(void)
+{
+    void* retval;
+
+    if(argint(0, (int*)&retval)<0)
+        return -1;
+   
+    th_exit(retval);
+    return 0 ; // useless 
+}
+
+int
+sys_th_join(void)
+{
+    thread_t id;
+    void** retval;
+    uint* stack;
+
+    int ret;
+    if(argint(0, (int*)&id)<0)
+        return -1;
+    
+    if(argint(1, (int*)&retval)<0)
+        return -1;
+
+    if(argint(2, (int*)&stack)<0)
+        return -1;
+
+    cprintf("threadid : %d\n", (int)id);
+    ret = th_join(id, retval, stack);
+    return  ret;
+
+}
+

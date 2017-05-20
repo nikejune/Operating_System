@@ -120,6 +120,10 @@ void            wakeup(void*);
 void            yield(void);
 int             getlev(void);
 int             set_cpu_share(int);
+int             th_create(thread_t*, void*(*start_routine)(void*), void*, uint);
+void            th_exit(void*);
+int             th_join(thread_t, void**, uint*);
+
 
 // swtch.S
 void            swtch(struct context**, struct context*);

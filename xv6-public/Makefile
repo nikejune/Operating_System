@@ -138,7 +138,7 @@ tags: $(OBJS) entryother.S _init
 vectors.S: vectors.pl
 	perl vectors.pl > vectors.S
 
-ULIB = ulib.o usys.o printf.o umalloc.o
+ULIB = ulib.o usys.o printf.o umalloc.o thread.o
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
@@ -183,6 +183,7 @@ UPROGS=\
     _test_mlfq\
     _test_master\
     _test_stride\
+    _threadtest\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -250,10 +251,10 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 # check in that version.
 
 EXTRA=\
-	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
+	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c thread.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
 	printf.c umalloc.c my_userapp.c user_app.c user_app2.c user_app3.c\
-    test_mlfq.c test_master.c test_stride.c\
+    test_mlfq.c test_master.c test_stride.c threadtest.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 

@@ -42,7 +42,6 @@ free(void *ap)
     p->s.ptr = bp;
   freep = p;
 }
-
 static Header*
 morecore(uint nu)
 {
@@ -83,8 +82,13 @@ malloc(uint nbytes)
       freep = prevp;
       return (void*)(p + 1);
     }
-    if(p == freep)
+    if(p == freep){
       if((p = morecore(nunits)) == 0)
         return 0;
+    }
   }
 }
+
+
+
+

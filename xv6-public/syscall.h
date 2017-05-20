@@ -25,3 +25,6 @@
 #define SYS_yield  24
 #define SYS_getlev 25
 #define SYS_set_cpu_share 26
+#define SYS_th_create 27
+#define SYS_th_exit   28
+#define SYS_th_join   29

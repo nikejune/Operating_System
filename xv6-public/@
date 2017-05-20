@@ -63,9 +63,7 @@ found:
   p->pass = 0;
   p->thread_id = -1;
   p->numofthread = 0;
-  p->th_stack =0;
-  p-> retval = 0;
-  
+
   release(&ptable.lock);
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
@@ -275,8 +273,6 @@ wait(void)
         p->pass =0;
         p->thread_id = -1;
         p->numofthread = 0;
-        p->th_stack = 0;
-        p->retval = 0;
         //
         p->state = UNUSED;
         release(&ptable.lock);
@@ -304,7 +300,7 @@ priorityboost (void)
   if(totaltick >= 100)
   {
       totaltick = 0;
-  //    cprintf("boost!\n");
+      cprintf("boost!\n");
       totaltick =0;
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
       {
@@ -684,9 +680,6 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   //exec.c
   uint sp, ustack[2];
 
-//  uint stack2;
-//  char * kallocstack;
-
 
   //fork.c start
 
@@ -694,36 +687,18 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   if((np = allocproc()) == 0){
     return -1;
   }
-
-  proc->numofthread++;
-  np->thread_id = (thread_t)np->pid;
-  thread = &np->thread_id;
-
-
-/*  if((kallocstack = kalloc())==0)
-  {
-      cprintf("kalloc failed\n");
-      return 0;
-  }
-  stack2 = (uint)kallocstack;
-  stack2 += PGSIZE - stack2 % PGSIZE;
-  */
-
   // Copy process state from p.
-  np->pgdir = proc->pgdir;
-/*
-   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
+  np->pgdir = proc->pgdir;/*
+  if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
     np->kstack = 0;
     np->state = UNUSED;
     return -1;
-  }
-  */
+  }*/
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
   np->th_stack = stack;
-//  np->th_stack = stack2;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -743,10 +718,11 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   sp = stack + PGSIZE;
 
   ustack[0] = 0xffffffff;  // fake return PC
-  ustack[1] = (uint)arg;
+  ustack[1] = *((uint*)arg);
 
   sp -= 8;
   //thread additional operation
+  proc->numofthread++;
   if(copyout(np->pgdir, sp, ustack, (2)*4) < 0)
   {
       cprintf("copy stack failed\n");
@@ -755,6 +731,9 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   
   np->tf->eip = (uint)start_routine; // eip change
   np->tf->esp = sp;
+  np->thread_id = (thread_t)np->pid;
+  thread = &np->thread_id;
+
 
   // Commit to the user image.
 //  switchuvm(proc);
@@ -766,6 +745,8 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
   np->state = RUNNABLE;
     release(&ptable.lock);
 
+    cprintf("th_create end\n");
+    cprintf("%d\n", np->thread_id);
   return pid;
 }
 
@@ -808,10 +789,12 @@ th_exit (void* retval)
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   proc->retval = retval;
+  cprintf("th_exit end\n");
   sched();
   panic("zombie exit");
 
 
+  proc->retval = (void*)-1;
 }
 
 int
@@ -820,6 +803,7 @@ th_join(thread_t thread, void** retval, uint* stack)
   struct proc *p;
   int havekids, pid;
 
+  cprintf("th_join start\n");
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -830,12 +814,10 @@ th_join(thread_t thread, void** retval, uint* stack)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one
+        cprintf("ya!\n");
         *retval = p->retval;
-        *stack = p->th_stack;
-        p->parent->numofthread--;
-//        if((deallocuvm(p->parent->pgdir, (uint)p->parent->sz, (uint)p->parent->sz -2* PGSIZE)) == 0)
-//            return -1;
         pid = p->pid;
+        cprintf("join pid :%d\n", pid);
         kfree(p->kstack);
         p->kstack = 0;
         p->pid = 0;
@@ -852,16 +834,13 @@ th_join(thread_t thread, void** retval, uint* stack)
         p->pass =0;
         p->thread_id= -1;
         p->numofthread = 0;
-        p->th_stack = 0;
-        p->retval =0;
+        *stack = p->th_stack;
 
-
-      //  kfree((char*)p->th_stack);
         //
         p->state = UNUSED;
         release(&ptable.lock);
 
-
+        cprintf("th_join end\n");
         return pid;
       }
     }

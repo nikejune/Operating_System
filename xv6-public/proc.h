@@ -70,6 +70,11 @@ struct proc {
   int cpu_share;               // certain amount of CPU share
   int stride;                  // 10000 / cpu_share
   int pass;                    // execute time * stride value
+  // thread
+  int thread_id;
+  int numofthread;
+  uint  th_stack;
+  void* retval;
 };
 
 // Process memory is laid out contiguously, low addresses first:

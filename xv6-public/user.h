@@ -28,6 +28,15 @@ int getppid(void);
 void yield(void);
 int getlev(void);
 int set_cpu_share(int);
+int             th_create(thread_t*, void*(*start_routine)(void*), void*, uint);
+void            th_exit(void*);
+int             th_join(thread_t, void**, uint*);
+
+
+// thread.c
+int thread_create(thread_t*, void*(*start_routine)(void*), void*);
+void thread_exit(void*) __attribute__((noreturn));
+int thread_join(thread_t, void**);
 
 // ulib.c
 int stat(char*, struct stat*);
@@ -42,3 +51,4 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
