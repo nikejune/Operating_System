@@ -693,7 +693,7 @@ set_cpu_share(int share)
 
 
 int
-th_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
+thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
 {
   int i, pid;
   struct proc *np;
@@ -768,7 +768,7 @@ th_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
 }
 
 void
-th_exit (void* retval)
+thread_exit (void* retval)
 {
   struct proc *p;
   int fd;
@@ -813,7 +813,7 @@ th_exit (void* retval)
 }
 
 int
-th_join(thread_t thread, void** retval)
+thread_join(thread_t thread, void** retval)
 {
   struct proc *p;
   int havekids, pid;

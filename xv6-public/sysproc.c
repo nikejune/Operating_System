@@ -7,6 +7,9 @@
 #include "mmu.h"
 #include "proc.h"
 
+#define     PGSIZE      4096
+
+
 int
 sys_fork(void)
 {
@@ -128,13 +131,11 @@ sys_set_cpu_share(void)
 }
 
 int
-sys_th_create(void)
+sys_thread_create(void)
 {
     thread_t* id;
     void* (*start_routine)(void*) ;
     void* arg;
-
-    int ret;
 
     if(argint(0, (int*)&id)< 0)
         return -1;
@@ -142,25 +143,29 @@ sys_th_create(void)
         return -1;
     if(argint(2, (int*)&arg)<0)
         return -1;
-    ret =  th_create(id,start_routine, arg);
+    thread_create(id,start_routine, arg);
   
-    return ret;
+    if(id<0)
+       return -1;
+   else
+       return 0;
+
 }
 
 int
-sys_th_exit(void)
+sys_thread_exit(void)
 {
     void* retval;
 
     if(argint(0, (int*)&retval)<0)
         return -1;
    
-    th_exit(retval);
+    thread_exit(retval);
     return 0 ; // useless 
 }
 
 int
-sys_th_join(void)
+sys_thread_join(void)
 {
     thread_t id;
     void** retval;
@@ -173,8 +178,15 @@ sys_th_join(void)
         return -1;
 
 //    cprintf("threadid : %d\n", (int)id);
-    ret = th_join(id, retval);
-    return  ret;
-
+    ret = thread_join(id, retval);
+  
+  if(ret<=0)
+  {
+      return -1;
+  }
+  else
+  {
+   return 0;
+  }
 }
 
