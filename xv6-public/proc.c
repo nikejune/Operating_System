@@ -693,7 +693,7 @@ set_cpu_share(int share)
 
 
 int
-th_create(thread_t* thread, void*(*start_routine)(void*), void* arg, uint stack)
+th_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
 {
   int i, pid;
   struct proc *np;
@@ -813,7 +813,7 @@ th_exit (void* retval)
 }
 
 int
-th_join(thread_t thread, void** retval, uint* stack)
+th_join(thread_t thread, void** retval)
 {
   struct proc *p;
   int havekids, pid;
@@ -829,7 +829,6 @@ th_join(thread_t thread, void** retval, uint* stack)
       if(p->state == ZOMBIE){
         // Found one
         *retval = p->retval;
-        *stack = p->th_stack;
         p->parent->numofthread--;
 
       if(p->parent->numofthread == 0 ){

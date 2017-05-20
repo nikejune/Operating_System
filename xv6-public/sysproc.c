@@ -133,7 +133,6 @@ sys_th_create(void)
     thread_t* id;
     void* (*start_routine)(void*) ;
     void* arg;
-    uint stack;
 
     int ret;
 
@@ -143,10 +142,7 @@ sys_th_create(void)
         return -1;
     if(argint(2, (int*)&arg)<0)
         return -1;
-    if(argint(3, (int*)&stack)<0)
-        return -1;
-
-    ret =  th_create(id,start_routine, arg, stack);
+    ret =  th_create(id,start_routine, arg);
   
     return ret;
 }
@@ -168,7 +164,6 @@ sys_th_join(void)
 {
     thread_t id;
     void** retval;
-    uint* stack;
 
     int ret;
     if(argint(0, (int*)&id)<0)
@@ -177,11 +172,8 @@ sys_th_join(void)
     if(argint(1, (int*)&retval)<0)
         return -1;
 
-    if(argint(2, (int*)&stack)<0)
-        return -1;
-
 //    cprintf("threadid : %d\n", (int)id);
-    ret = th_join(id, retval, stack);
+    ret = th_join(id, retval);
     return  ret;
 
 }

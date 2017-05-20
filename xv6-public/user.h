@@ -28,9 +28,9 @@ int getppid(void);
 void yield(void);
 int getlev(void);
 int set_cpu_share(int);
-int             th_create(thread_t*, void*(*start_routine)(void*), void*, uint);
+int             th_create(thread_t*, void*(*start_routine)(void*), void*);
 void            th_exit(void*);
-int             th_join(thread_t, void**, uint*);
+int             th_join(thread_t, void**);
 
 
 // thread.c

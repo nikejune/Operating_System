@@ -8,17 +8,8 @@
 #define PGSIZE		4096
 
 int thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg){
-   void *stack = (void*)1234;
-
-   if ((uint)stack == 0)
-   {
-       return -1;
-   }
-   if((uint)stack % PGSIZE){
-   stack += PGSIZE - (uint)stack % PGSIZE;
-   }
-   
-   *thread =  th_create(thread, start_routine, arg,(uint)stack);
+  
+   *thread =  th_create(thread, start_routine, arg);
   
    if(thread<0)
        return -1;
@@ -32,11 +23,10 @@ void thread_exit(void* retval)
 
 }
 int thread_join(thread_t thread, void** retval){
- 
-  void * stack;
+
   int ret;
 
-  ret = th_join(thread, retval, (uint*)&stack);
+  ret = th_join(thread, retval);
 
  
   if(ret<=0)
