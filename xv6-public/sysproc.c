@@ -130,6 +130,7 @@ sys_set_cpu_share(void)
     return set_cpu_share(stride);
 }
 
+// thread create
 int
 sys_thread_create(void)
 {
@@ -137,33 +138,36 @@ sys_thread_create(void)
     void* (*start_routine)(void*) ;
     void* arg;
 
-    if(argint(0, (int*)&id)< 0)
+    if(argint(0, (int*)&id) < 0)
         return -1;
-    if(argint(1, (int*)&start_routine)<0)
+    if(argint(1, (int*)&start_routine) < 0)
         return -1;
-    if(argint(2, (int*)&arg)<0)
+    if(argint(2, (int*)&arg) < 0)
         return -1;
-    thread_create(id,start_routine, arg);
+   
+    thread_create(id, start_routine, arg);
   
-    if(id<0)
+    if(id < 0)
        return -1;
    else
        return 0;
 
 }
 
+//thread exit
 int
 sys_thread_exit(void)
 {
     void* retval;
 
-    if(argint(0, (int*)&retval)<0)
+    if(argint(0, (int*)&retval) < 0)
         return -1;
    
     thread_exit(retval);
     return 0 ; // useless 
 }
 
+//thread join
 int
 sys_thread_join(void)
 {
@@ -171,16 +175,15 @@ sys_thread_join(void)
     void** retval;
 
     int ret;
-    if(argint(0, (int*)&id)<0)
+    if(argint(0, (int*)&id) < 0)
         return -1;
     
-    if(argint(1, (int*)&retval)<0)
+    if(argint(1, (int*)&retval) < 0)
         return -1;
 
-//    cprintf("threadid : %d\n", (int)id);
     ret = thread_join(id, retval);
   
-  if(ret<=0)
+  if(ret <= 0)
   {
       return -1;
   }

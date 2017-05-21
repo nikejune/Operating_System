@@ -12,7 +12,7 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
-struct spinlock nplock;
+struct spinlock parentlock;
 
 static struct proc *initproc;
 
@@ -21,10 +21,6 @@ int totaltick;              // Timer interrupt or sys_yield increase this value
 int mlfq_stride =0;         // Stride of mlfq scheduler like a process  
 int mlfq_cpu_share=100;     // CPU_share of mlfq scheduler like a process
 int mlfq_pass=0;            // Pass value of mlfq scheduler like a process
-
-int szcheck = 0;
-int szcheck2 =1;
-
 
 int nextpid = 1;
 extern void forkret(void);
@@ -75,8 +71,7 @@ found:
   p->pass = 0;
   p->thread_id = -1;
   p->numofthread = 0;
-  p->numofthread2 = 0;
-  p->th_stack =0;
+  p->sumofthread = 0;
   p-> retval = 0;
 
   
@@ -248,7 +243,6 @@ exit(void)
     }
   }
 
-  szcheck2 = 1;
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   sched();
@@ -291,8 +285,7 @@ wait(void)
         p->pass =0;
         p->thread_id = -1;
         p->numofthread = 0;
-        p->numofthread2 = 0;
-        p->th_stack = 0;
+        p->sumofthread = 0;
         p->retval = 0;
         //
         p->state = UNUSED;
@@ -700,47 +693,37 @@ thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
   uint sp, ustack[2];
 
   // Allocate process.
-  if((np = allocproc()) == 0){
-    return -1;
+  if((np = allocproc()) == 0)
+  {
+      return -1;
   }
 
-
+  acquire(&parentlock);
   //PGROUNDUP
   proc->sz = PGROUNDUP(proc->sz);
-    if((proc->sz = allocuvm(proc->pgdir, proc->sz, proc->sz + 2* PGSIZE)) == 0)
+  if((proc->sz = allocuvm(proc->pgdir, proc->sz, proc->sz + 2 * PGSIZE)) == 0)
+  {
       return -1;
+  }
+  sp = proc->sz;
 
-  np->th_stack = proc->sz;
   // Copy process state from p.
   np->pgdir = proc->pgdir;
-
-  // np additional setup 
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-  acquire(&nplock);
-  np->parent->numofthread++;
-  np->parent->numofthread2++;
-  release(&nplock);
   np->thread_id = (thread_t)np->pid;
+  
+  // Set return value thread
   *thread = np->thread_id;
 
-  // Clear %eax so that fork returns 0 in the child.
-  np->tf->eax = 0;
-
-  for(i = 0; i < NOFILE; i++)
-    if(proc->ofile[i])
-      np->ofile[i] = filedup(proc->ofile[i]);
-  np->cwd = idup(proc->cwd);
-
-  safestrcpy(np->name, proc->name, sizeof(proc->name));
-
-  pid = np->pid;
-
-  sp = np->th_stack;
-
+  // Parent Process state have a thread, Add +1
+  np->parent->numofthread++;
+  np->parent->sumofthread++;
+  release(&parentlock);
+  
   ustack[0] = 0xffffffff;  // fake return PC
-  ustack[1] = (uint)arg;
+  ustack[1] = (uint)arg;   // given argument;
 
   sp -= 8;
   //thread additional operation
@@ -749,27 +732,47 @@ thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
       cprintf("copy stack failed\n");
       return -1;
   }
-  
-  np->tf->eip = (uint)start_routine; // eip change
+ 
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+
+  // Change EIP (Next instruction) to start_routine(thread pointer)
+  np->tf->eip = (uint)start_routine; 
+
+  // Change esp(stack pointer)
   np->tf->esp = sp;
 
+
+  //return value
+  pid = np->pid;
+
+
+  for(i = 0; i < NOFILE; i++)
+    if(proc->ofile[i])
+      np->ofile[i] = filedup(proc->ofile[i]);
+  np->cwd = idup(proc->cwd);
+
+  safestrcpy(np->name, proc->name, sizeof(proc->name));
+ 
 
   // Commit to the user image.
   switchuvm(proc);
 
   acquire(&ptable.lock);
+  
   np->state = RUNNABLE;
-    release(&ptable.lock);
- 
- //   cprintf("threadid : %d, stack address :%d\n", np->thread_id, np->th_stack);
- //   cprintf("current numofthread : %d \n", np->parent->numofthread);
+  
+  release(&ptable.lock);
  
   return pid;
 }
 
+// It is almost identical to the exit function.
+// The only difference is that only retval set to the struct proc
 void
-thread_exit (void* retval)
+thread_exit(void* retval)
 {
+  
   struct proc *p;
   int fd;
 
@@ -805,10 +808,10 @@ thread_exit (void* retval)
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
+  // Set retval
   proc->retval = retval;
   sched();
   panic("zombie exit");
-
 
 }
 
@@ -820,69 +823,58 @@ thread_join(thread_t thread, void** retval)
 
   acquire(&ptable.lock);
   for(;;){
-    // Scan through table looking for exited children.
-     havekids = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->parent != proc || p->thread_id != thread)
-        continue;
-      havekids = 1;
-      if(p->state == ZOMBIE){
-        // Found one
-        *retval = p->retval;
-        p->parent->numofthread--;
+      // Scan through table looking for exited children.
+      havekids = 0;
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+          if(p->parent != proc || p->thread_id != thread)
+              continue;
+          havekids = 1;
+          if(p->state == ZOMBIE){
 
-      if(p->parent->numofthread == 0 ){
-          if((p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-2*(p->parent->numofthread2)*PGSIZE)) == 0)
-           return -1;
-          p->parent->numofthread2 =0;
+              // Found one
+
+              // Set return value (retval)
+              *retval = p->retval;
+              // Reduce Numofthread of parent process
+              p->parent->numofthread--;
+              // If numofthread of parent process is 0, Reduce the memory size and set sumofthread of parent process to 0.
+              if(p->parent->numofthread == 0){
+                  if((p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-2*(p->parent->sumofthread)*PGSIZE)) == 0)
+                      return -1;
+                  p->parent->sumofthread = 0;
+              }
+      
+              pid = p->pid;
+              kfree(p->kstack);
+              p->kstack = 0;
+              p->pid = 0;
+              p->parent = 0;
+              p->name[0] = 0;
+              p->killed = 0;
+              //addition restoration
+              p->tick = 0;
+              p->level = 0;
+              mlfq_cpu_share += p->cpu_share;
+              mlfq_stride = (int)(10000 / mlfq_cpu_share);
+              p->cpu_share = 0;
+              p->stride = 0;
+              p->pass = 0;
+              p->thread_id= -1;
+              p->numofthread = 0;
+              p->retval = 0;
+              p->state = UNUSED;
+              release(&ptable.lock);
+              return pid;
+          }
       }
-       
-
-     /*   if(p->parent->numofthread == 0 )
-        {  
-                  p->parent->sz = p->parent->oldsz;
-    
-        }*/
-//        if((deallocuvm(p->parent->pgdir, (uint)p->parent->sz, (uint)p->parent->sz -2* PGSIZE)) == 0)
-//            return -1;
-        pid = p->pid;
-        kfree(p->kstack);
-        p->kstack = 0;
-        p->pid = 0;
-        p->parent = 0;
-        p->name[0] = 0;
-        p->killed = 0;
-        //addition restoration
-        p->tick = 0;
-        p->level = 0;
-        mlfq_cpu_share += p->cpu_share;
-        mlfq_stride = (int)(10000 / mlfq_cpu_share);
-        p->cpu_share = 0;
-        p->stride = 0;
-        p->pass =0;
-        p->thread_id= -1;
-        p->numofthread = 0;
-        p->th_stack = 0;
-        p->retval =0;
-
-
-      //  kfree((char*)p->th_stack);
-        //
-        p->state = UNUSED;
-        release(&ptable.lock);
-
-
-        return pid;
+  
+      // No point waiting if we don't have any children.
+      if(!havekids || proc->killed){
+          release(&ptable.lock);
+          return -1;
       }
-    }
 
-    // No point waiting if we don't have any children.
-    if(!havekids || proc->killed){
-      release(&ptable.lock);
-      return -1;
-    }
-
-    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+      // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+      sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
 }
