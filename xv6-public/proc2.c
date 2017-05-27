@@ -213,118 +213,19 @@ exit(void)
   struct proc *p;
   struct proc *pp;
   int fd;
-  int check = 0;
+//  int check1 =0;
+  int check2 =0;
+  if(proc == initproc)
+    panic("init exiting");
 
-  acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(proc == p->parent)
-          if(p->thread_id != -1){
-              check = 1;
-              break;
-          }
-  }
-  release(&ptable.lock);
-  
-
-  // original exit code
-  if(proc->thread_id == -1 && !check)
-  {
-   //   cprintf("original exit code\n");
-      if(proc == initproc)
-        panic("init exiting");
-    
-      // Close all open files.
-      for(fd = 0; fd < NOFILE; fd++){
-        if(proc->ofile[fd]){
-          fileclose(proc->ofile[fd]);
-          proc->ofile[fd] = 0;
-        }
-      }
-    
-      begin_op();
-      iput(proc->cwd);
-      end_op();
-      proc->cwd = 0;
-    
-      acquire(&ptable.lock);
-    
-      // Parent might be sleeping in wait().
-      wakeup1(proc->parent);
-    
-      // Pass abandoned children to init.
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        if(p->parent == proc){
-          p->parent = initproc;
-          if(p->state == ZOMBIE)
-            wakeup1(initproc);
-        }
-      }
-    
-      // Jump into the scheduler, never to return.
-      proc->state = ZOMBIE;
-      sched();
-      panic("zombie exit");
-    
-  }
-  // testexit1 code
-  else if(check)
-  {
-    //  cprintf("testexit1 code\n");
-      if(proc == initproc)
-        panic("init exiting");
-    
-
-      acquire(&ptable.lock);
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-      { 
-          if( p -> parent == proc && p->thread_id >0)
-          {
-              release(&ptable.lock);
-              // Close all open files.
-              for(fd = 0; fd < NOFILE; fd++){
-                  if(p->ofile[fd]){
-                      fileclose(p->ofile[fd]);
-                      p->ofile[fd] = 0;
-                  }
-              }
-              begin_op();
-              iput(p->cwd);
-              end_op();
-              p->cwd = 0;
-              acquire(&ptable.lock);
-    
-              // Pass abandoned children to init.
-             
-              p->parent->numofthread--;
-              // If numofthread of parent process is 0, Reduce the memory size and set sumofthread of parent process to 0.
-              if(p->parent->numofthread == 0){
-                  p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-2*(p->parent->sumofthread)*PGSIZE);
-                  p->parent->sumofthread = 0;
-              }
-  
-              kfree(p->kstack);
-              p->kstack = 0;
-              p->pid = 0;
-              p->parent = 0;
-              p->name[0] = 0;
-              p->killed = 0;
-              //addition restoration
-              p->tick = 0;
-              p->level = 0;
-              mlfq_cpu_share += p->cpu_share;
-              mlfq_stride = (int)(10000 / mlfq_cpu_share);
-              p->cpu_share = 0;
-              p->stride = 0;
-              p->pass = 0;
-              p->thread_id= -1;
-              p->numofthread = 0;
-              p->retval = 0;
-              p->state = UNUSED;
-          }
-      }
-   
-      release(&ptable.lock);
-
+  /* if(proc->thread_id >0)
+   {
+       proc = proc->parent;
+       wakeup1(proc);
+ //      check2 =1;
+   }
+   */
+  // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(proc->ofile[fd]){
       fileclose(proc->ofile[fd]);
@@ -332,153 +233,94 @@ exit(void)
     }
   }
 
- 
   begin_op();
   iput(proc->cwd);
   end_op();
   proc->cwd = 0;
-  acquire(&ptable.lock);
-    
-  
-  // Parent might be sleeping in wait().
-  wakeup1(proc->parent);
 
-  // Jump into the scheduler, never to return.
-  proc->state = ZOMBIE;
+   acquire(&ptable.lock);
   
-  
-  sched();
-  panic("zombie exit");
-  
-  }
-  // testexit2 code
-  else
-  {
-      pp = proc->parent;
-  //    cprintf("testexit2 code\n");
-      if(proc == initproc)
-        panic("init exiting");
-    
+   // Parent might be sleeping in wait().
+   wakeup1(proc->parent);
 
-      acquire(&ptable.lock);
-      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-      { 
-          if( p->parent == proc->parent && p->thread_id >0 && p !=proc)
-          {
-              release(&ptable.lock);
-              // Close all open files.
-              for(fd = 0; fd < NOFILE; fd++){
-                  if(p->ofile[fd]){
-                      fileclose(p->ofile[fd]);
-                      p->ofile[fd] = 0;
-                  }
-              }
-              begin_op();
-              iput(p->cwd);
-              end_op();
-              p->cwd = 0;
-              acquire(&ptable.lock);
-    
-              // Pass abandoned children to init.
-              p->parent->numofthread--;
-              // If numofthread of parent process is 0, Reduce the memory size and set sumofthread of parent process to 0.
-              if(p->parent->numofthread == 0 && p->parent->sumofthread>0){
+
+   // Pass abandoned children to init.
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->parent == proc){
+        if( p->thread_id >0)
+        {
+    //      check1 =1;
+            cprintf("p->parent->numofthread : %d \n", p->parent->numofthread);
+            p->parent->numofthread--;
+            // If numofthread of parent process is 0, Reduce the memory size and set sumofthread of parent process to 0.
+            if(p->parent->numofthread == 0){
                   p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-2*(p->parent->sumofthread)*PGSIZE);
                   p->parent->sumofthread = 0;
               }
-              kfree(p->kstack);
-              p->kstack = 0;
-              p->pid = 0;
-              p->parent = 0;
-              p->name[0] = 0;
-              p->killed = 0;
-              //addition restoration
-              p->tick = 0;
-              p->level = 0;
-              mlfq_cpu_share += p->cpu_share;
-              mlfq_stride = (int)(10000 / mlfq_cpu_share);
-              p->cpu_share = 0;
-              p->stride = 0;
-              p->pass = 0;
-              p->thread_id= -1;
-              p->numofthread = 0;
-              p->retval = 0;
-              p->state = UNUSED;
-          }
-      }
-      release(&ptable.lock);
-      
-      for(fd = 0; fd < NOFILE; fd++){
-         if(proc->ofile[fd]){
-              fileclose(proc->ofile[fd]);
-              proc->ofile[fd] = 0;
-          }
-      }
-      begin_op();
-      iput(proc->cwd);
-      end_op();
-      proc->cwd = 0;
-
-      // Pass abandoned children to init.
-     
-      proc->parent->numofthread--;
-         // If numofthread of parent process is 0, Reduce the memory size and set sumofthread of parent process to 0.
-      if(proc->parent->numofthread == 0 && proc->parent->sumofthread > 0){
-          proc->parent->sz=deallocuvm(proc->parent->pgdir, proc->parent->sz, proc->parent->sz-2*(proc->parent->sumofthread-1)*PGSIZE);
-          proc->parent->sumofthread = 0;
-      }
-      
-  //    cprintf("proc before kree tid : %d \n", proc->thread_id);
-  //    kfree(proc->kstack);
-  //    cprintf("proc after  kiree tid : %d \n", proc->thread_id);
-    
-      proc->kstack = 0;
-      proc->pid = 0;
-      proc->name[0] = 0;
-      proc->killed = 0;
-      //addition restoration
-      proc->tick = 0;
-      proc->level = 0;
-      mlfq_cpu_share += proc->cpu_share;
-      mlfq_stride = (int)(10000 / mlfq_cpu_share);
-      proc->cpu_share = 0;
-      proc->stride = 0;
-      proc->pass = 0;
-      proc->thread_id= -1;
-      proc->numofthread = 0;
-      proc->retval = 0;
-      proc->state = UNUSED;
-      proc->parent = 0;
-      wakeup1(initproc);
-
-
-  for(fd = 0; fd < NOFILE; fd++){
-    if(pp->ofile[fd]){
-      fileclose(pp->ofile[fd]);
-      pp->ofile[fd] = 0;
+         p->state = ORPHAN;      
+        }
+        p->parent = initproc;
+        if(p->state == ZOMBIE)
+        wakeup1(initproc);
     }
+   else if( p->parent == proc->parent)
+    {
+        
+        cprintf("p->parent == proc->parent proc->name : %s\n", proc->name);
+        if(p->state == RUNNABLE && p->thread_id >0)
+        {
+            check2 = 1;
+            cprintf("p->parent->numofthread : %d \n", p->parent->numofthread);
+            p->parent->numofthread--;
+            // If numofthread of parent process is 0, Reduce the memory size and set sumofthread of parent process to 0.
+            if(p->parent->numofthread == 0){
+                  p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-2*(p->parent->sumofthread)*PGSIZE);
+                  p->parent->sumofthread = 0;
+              }
+            p->state = ORPHAN;
+            p->parent = initproc;
+            if(p->state == ZOMBIE)
+        wakeup1(initproc);
+
+         }
+     }
+
   }
 
+  if(check2)
+  {
+            pp = proc->parent;
+            proc->state = ORPHAN;
+            proc->parent -> state = ORPHAN;
+   }
+   procdump();
  
-  begin_op();
-  iput(pp->cwd);
-  end_op();
-  pp->cwd = 0;
-  acquire(&ptable.lock);
-  
-  
-  // Parent might be sleeping in wait().
-  wakeup1(pp->parent);
-
+  cprintf("jinjung\n");
   // Jump into the scheduler, never to return.
-  pp->state = ZOMBIE;
+  cprintf("intro\n");
+  // parentkiller();
+  /*  if(check1)
+  {
+      wakeup1(proc->parent);
+      cprintf("check1\n");
+      check1 =0;
+  }
+  */
   
-   
+  procdump();
+  cprintf("outro\n");
+  if(!check2)
+    proc->state = ZOMBIE;
+  else{
+      wakeup1(pp->parent);
+  }
+  cprintf("OM intro\n");
+  orphanmanager();
+  cprintf("OM outro\n");
+  if(check2)
+      pp->state = ZOMBIE;
   sched();
   panic("zombie exit");
-  
- 
-  }
 }
 
 // Wait for a child process to exit and return its pid.
@@ -535,6 +377,153 @@ wait(void)
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
+}
+
+void 
+orphanmanager(void)
+{
+  struct proc *p;
+  struct proc *pp;
+
+  int fd;
+  int check =0;
+  
+  pp = proc->parent;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == ORPHAN){
+          release(&ptable.lock);
+          for(fd = 0; fd < NOFILE; fd++){
+              if(p->ofile[fd]){
+                  fileclose(p->ofile[fd]);
+                  p->ofile[fd] = 0;
+              }
+          }
+
+          begin_op();
+          iput(p->cwd);
+          end_op();
+          p->cwd = 0;
+
+          acquire(&ptable.lock);
+
+
+          if(p == proc->parent)
+          {
+              cprintf("111");
+              check =1 ;
+              continue;
+          }
+        // Found one.
+          cprintf("sibal\n");
+        kfree(p->kstack);
+        cprintf("OM kfree after\n");
+        p->kstack = 0;
+        cprintf("OM freevm after\n");
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        //addition restoration
+        p->tick = 0;
+        p->level = 0;
+        mlfq_cpu_share += p->cpu_share;
+        mlfq_stride = (int)(10000 / mlfq_cpu_share);
+        p->cpu_share = 0;
+        p->stride = 0;
+        p->pass =0;
+        p->thread_id = -1;
+        p->numofthread = 0;
+        p->sumofthread = 0;
+        p->retval = 0;
+        //
+        p->state = UNUSED;
+
+
+        procdump();
+      }
+    }
+
+    if(check)
+    {
+        p = proc;
+        proc = pp->parent;
+        cprintf("check 1\n");
+     //   kfree(p->kstack);
+        cprintf("OM kfree after\n");
+        p->kstack = 0;
+        cprintf("OM freevm after\n");
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        //addition restoration
+        p->tick = 0;
+        p->level = 0;
+        mlfq_cpu_share += p->cpu_share;
+        mlfq_stride = (int)(10000 / mlfq_cpu_share);
+        p->cpu_share = 0;
+        p->stride = 0;
+        p->pass =0;
+        p->thread_id = -1;
+        p->numofthread = 0;
+        p->sumofthread = 0;
+        p->retval = 0;
+        //
+        p->state = UNUSED;
+        procdump();
+
+    
+    }
+
+
+}
+
+void
+parentkiller (void)
+{
+    struct proc *p;
+ //   int count = 0;
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if( proc->parent == p->parent && p->thread_id >=0)
+        {
+     //       count++;
+            p->state = ORPHAN;
+           cprintf("killer1\n"); 
+        }
+    }
+    release(&ptable.lock);
+    cprintf("killer2\n"); 
+ /*   if(count+1 == proc->parent->sumofthread)
+    {
+        p = proc->parent;
+        cprintf("sibal\n");
+        kfree(p->kstack);
+        cprintf("OM kfree after\n");
+        p->kstack = 0;
+        cprintf("OM freevm after\n");
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        //addition restoration
+        p->tick = 0;
+        p->level = 0;
+        mlfq_cpu_share += p->cpu_share;
+        mlfq_stride = (int)(10000 / mlfq_cpu_share);
+        p->cpu_share = 0;
+        p->stride = 0;
+        p->pass =0;
+        p->thread_id = -1;
+        p->numofthread = 0;
+        p->sumofthread = 0;
+        p->retval = 0;
+        //
+        p->state = UNUSED;
+
+    }  
+*/
+    
 }
 
 // If totaltick exceed to 100,
@@ -858,7 +847,8 @@ procdump(void)
   [SLEEPING]  "sleep ",
   [RUNNABLE]  "runble",
   [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+  [ZOMBIE]    "zombie",
+  [ORPHAN]    "orphan"
   };
   int i;
   struct proc *p;
@@ -1033,6 +1023,7 @@ thread_exit(void* retval)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == proc){
       p->parent = initproc;
+     
       if(p->state == ZOMBIE)
         wakeup1(initproc);
     }
