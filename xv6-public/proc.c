@@ -43,8 +43,10 @@ static struct proc*
 allocproc(void)
 {
   struct proc *p;
+ // struct proc *p2;
   char *sp;
-
+ // int temp = 0;
+ // int temp2 ;
   acquire(&ptable.lock);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
@@ -144,17 +146,35 @@ growproc(int n)
 {
   uint sz;
 
-  sz = proc->sz;
-  if(n > 0){
-    if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
-      return -1;
-  } else if(n < 0){
-    if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
-      return -1;
+  if(proc->thread_id>0)
+  {
+      sz = proc->parent->sz;
+      if(n > 0){
+        if((sz = allocuvm(proc->parent->pgdir, sz, sz + n)) == 0)
+          return -1;
+      } else if(n < 0){
+        if((sz = deallocuvm(proc->parent->pgdir, sz, sz + n)) == 0)
+          return -1;
+      }
+      proc->parent->sz = sz;
+      switchuvm(proc);
+      return 0;
   }
-  proc->sz = sz;
-  switchuvm(proc);
-  return 0;
+  else
+  {
+      sz = proc->sz;
+      if(n > 0){
+        if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+          return -1;
+      } else if(n < 0){
+        if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
+          return -1;
+      }
+      proc->sz = sz;
+      switchuvm(proc);
+      return 0;
+  }
+
 }
 
 // Create a new process copying p as the parent.
@@ -279,6 +299,7 @@ exit(void)
       { 
           if( p -> parent == proc && p->thread_id >0)
           {
+              
               release(&ptable.lock);
               // Close all open files.
               for(fd = 0; fd < NOFILE; fd++){
@@ -345,7 +366,7 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
-  
+ 
   
   sched();
   panic("zombie exit");
@@ -365,6 +386,7 @@ exit(void)
       { 
           if( p->parent == proc->parent && p->thread_id >0 && p !=proc)
           {
+      
               release(&ptable.lock);
               // Close all open files.
               for(fd = 0; fd < NOFILE; fd++){
@@ -381,11 +403,6 @@ exit(void)
     
               // Pass abandoned children to init.
               p->parent->numofthread--;
-              // If numofthread of parent process is 0, Reduce the memory size and set sumofthread of parent process to 0.
-              if(p->parent->numofthread == 0 && p->parent->sumofthread>0){
-                  p->parent->sz=deallocuvm(p->parent->pgdir, p->parent->sz, p->parent->sz-2*(p->parent->sumofthread)*PGSIZE);
-                  p->parent->sumofthread = 0;
-              }
               kfree(p->kstack);
               p->kstack = 0;
               p->pid = 0;
@@ -431,7 +448,7 @@ exit(void)
   //    cprintf("proc before kree tid : %d \n", proc->thread_id);
   //    kfree(proc->kstack);
   //    cprintf("proc after  kiree tid : %d \n", proc->thread_id);
-    
+   /* 
       proc->kstack = 0;
       proc->pid = 0;
       proc->name[0] = 0;
@@ -447,10 +464,12 @@ exit(void)
       proc->thread_id= -1;
       proc->numofthread = 0;
       proc->retval = 0;
-      proc->state = UNUSED;
+      proc->state = ZOMBIE;
       proc->parent = 0;
       wakeup1(initproc);
-
+*/
+      proc->state = ZOMBIE;
+      proc->parent = proc;
 
   for(fd = 0; fd < NOFILE; fd++){
     if(pp->ofile[fd]){
@@ -466,14 +485,13 @@ exit(void)
   pp->cwd = 0;
   acquire(&ptable.lock);
   
-  
+ 
   // Parent might be sleeping in wait().
   wakeup1(pp->parent);
 
   // Jump into the scheduler, never to return.
   pp->state = ZOMBIE;
   
-   
   sched();
   panic("zombie exit");
   
@@ -684,8 +702,10 @@ scheduler(void)
       // Condition : cpu_share > 0 (has stride) && process state RUNNABLE
       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
           if(p->cpu_share >0 &&  p->state == RUNNABLE && (min_pass > p->pass)){
+      //      cprintf("beforep->tid : %dp->pass %d minpass : %d\n",p->thread_id, p->pass, min_pass);
             min_pass = p->pass;
             minp = p;
+      //      cprintf("after p->tid : %dp->pass %d minpass : %d\n",p->thread_id, p->pass, min_pass);
           }
       }
    
@@ -898,7 +918,15 @@ set_cpu_share(int share)
 
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-        total += p->cpu_share;
+        if(p->thread_id == -1)
+            total += p->cpu_share;
+        
+        if(p->parent == proc && p->thread_id >0)
+        {
+            p->cpu_share = (int)share/proc->numofthread; 
+            p->stride = (int)(10000/ p->cpu_share);
+        }
+
     }
     release(&ptable.lock);
 
@@ -923,13 +951,16 @@ thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
   int i, pid;
   struct proc *np;
   uint sp, ustack[2];
+   struct proc *p2;
+//  int temp, temp2;
+//  temp =0;
 
   // Allocate process.
   if((np = allocproc()) == 0)
   {
       return -1;
   }
-
+  
   acquire(&parentlock);
   //PGROUNDUP
   proc->sz = PGROUNDUP(proc->sz);
@@ -945,6 +976,7 @@ thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
   np->parent = proc;
   *np->tf = *proc->tf;
   np->thread_id = (thread_t)np->pid;
+  
   
   // Set return value thread
   *thread = np->thread_id;
@@ -994,6 +1026,43 @@ thread_create(thread_t* thread, void*(*start_routine)(void*), void* arg)
   
   np->state = RUNNABLE;
   
+  // cpu_share setting
+  if(np->parent->cpu_share>0)
+  {
+ 
+      for(p2 = ptable.proc; p2 < &ptable.proc[NPROC]; p2++)
+      {
+          if(p2 -> parent == np->parent){
+         p2->cpu_share = (int)np->parent->cpu_share/np->parent->numofthread; 
+         p2->stride = (int)(10000/ p2->cpu_share);
+          }
+      }
+/*
+      temp2 = (int)temp / (np->parent->numofthread+1);
+      cprintf("before divide set cpu share///temp : %d temp 2: %d \n ", temp, temp2);
+      for(p2 = ptable.proc; p2 < &ptable.proc[NPROC]; p2++)
+      {
+          if(p2 -> parent == np->parent)
+          {
+              temp -= temp2;
+              p2->cpu_share = temp2;
+              p2->stride = (int)(10000 / p2->cpu_share);
+      cprintf("dividing...p2->cpu_share = %d p2->stride = %d\n", p2->cpu_share, p2->stride);
+      cprintf("dividing...temp : %d temp 2 ; %d\n", temp , temp2);
+          }
+      }
+      if(temp <=0 ){
+          cprintf("temp<0\n");
+          np->parent->cpu_share = 0;
+          np->parent->stride = 50;
+      }
+      else{
+          cprintf("temp>0");
+      np->parent->cpu_share = temp;
+      np->parent->stride = (int)(10000/ np->cpu_share);
+      }*/
+  }
+ 
   release(&ptable.lock);
  
   return pid;

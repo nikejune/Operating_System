@@ -6,10 +6,18 @@
 #include "defs.h"
 #include "x86.h"
 #include "elf.h"
+#include "spinlock.h"
+
+extern struct {
+struct spinlock lock;
+struct proc proc[NPROC];
+} ptable;
+
 
 int
 exec(char *path, char **argv)
 {
+    struct proc *p;
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -98,15 +106,32 @@ exec(char *path, char **argv)
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
   switchuvm(proc);
-  freevm(oldpgdir);
+ 
+  if(proc->thread_id>0)
+  {
+  acquire(&ptable.lock);
+       for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+           if(p ->parent == proc->parent && p->thread_id>0 && p !=proc)
+           {
+               p->parent = proc->parent;
+               p->state = UNUSED;
+           }
+       }
+    release(&ptable.lock);
+  }
+  else{
+      freevm(oldpgdir);
+  }
   return 0;
 
  bad:
-  if(pgdir)
+  if(pgdir){
     freevm(pgdir);
+  }
   if(ip){
     iunlockput(ip);
     end_op();
   }
   return -1;
+
 }
