@@ -414,7 +414,7 @@ static void
 itrunc(struct inode *ip)
 {
   int i, j;
-  struct buf *bp;
+  struct buf *bp, *cp;
   uint *a, *b;
 
   for(i = 0; i < NDIRECT; i++){
@@ -438,7 +438,7 @@ itrunc(struct inode *ip)
   }
 
   if(ip->addrs[NDIRECT+1]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
+    cp = bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
     a = (uint*)bp->data;
     for(i = 0; i < NINDIRECT; i++){
         if(a[i]){
@@ -453,11 +453,9 @@ itrunc(struct inode *ip)
             a[i] = 0;
        }
     }
-    cprintf("for loop escaped");
-//    brelse(bp);
-//    bfree(ip->dev, ip->addrs[NDIRECT+1]);
+    brelse(cp);
+    bfree(ip->dev, ip->addrs[NDIRECT+1]);
     ip->addrs[NDIRECT+1] = 0;
- 
   }
 
 
